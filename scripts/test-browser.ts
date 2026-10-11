@@ -283,6 +283,37 @@ try {
     assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers[1].rotation ?? 0), rotated)
   })
 
+  await check('The base layer cannot be moved, resized or rotated', async () => {
+    const setup = await page.evaluate(() => {
+      const h = globalThis.artboarding!, [base, ...others] = h.projectStore.state.layers
+      // Only the base stays visible, so pointer presses are guaranteed to hit it.
+      for (const layer of others) h.actions.updateLayer(layer.id, {visible: false})
+      const frameEnabled = h.editorStore.state.frameEnabled
+      h.editorStore.set({frameEnabled: false}); h.actions.selectLayer(base.id); h.editorStore.set({tool: 'image'}); h.actions.fitViewToContent()
+      return {id: base.id, rect: {...base.rect}, rotation: base.rotation ?? 0, hidden: others.length, frameEnabled}
+    })
+    await settle(); await settle()
+    const placement = () => page.evaluate(id => {const layer = globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!; return {rect: {...layer.rect}, rotation: layer.rotation ?? 0}}, setup.id)
+    assert.equal(await page.$('[data-layer-corner]'), null, 'The base layer has no resize handles')
+    assert.equal(await page.$('[data-layer-rotate]'), null, 'The base layer has no rotation handle')
+    const viewport = (await (await page.$('[data-viewport]'))!.boundingBox())!
+    const view = await page.evaluate(() => ({...globalThis.artboarding!.editorStore.state.view}))
+    const start = {x: viewport.x + view.x + (setup.rect.x + setup.rect.width / 2) * view.scale, y: viewport.y + view.y + (setup.rect.y + setup.rect.height / 2) * view.scale}
+    await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(start.x + 60, start.y + 40, {steps: 8}); await page.mouse.up()
+    assert.deepEqual(await placement(), {rect: setup.rect, rotation: setup.rotation}, 'Dragging the base layer must not move it')
+    const panned = await page.evaluate(() => ({...globalThis.artboarding!.editorStore.state.view}))
+    assert.ok(Math.abs(panned.x - view.x - 60) < 1 && Math.abs(panned.y - view.y - 40) < 1, 'Dragging the base layer pans the view instead')
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.selectedLayerId), setup.id)
+    await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowDown')
+    assert.deepEqual(await placement(), {rect: setup.rect, rotation: setup.rotation}, 'Arrow keys must not nudge the base layer')
+    await page.evaluate(setup => {
+      const h = globalThis.artboarding!
+      for (let i = 0; i < setup.hidden; i++) h.actions.undo()
+      h.editorStore.set({tool: 'frame', frameEnabled: setup.frameEnabled}); h.actions.selectLayer(null)
+    }, setup)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.every(layer => layer.visible)), true)
+  })
+
   await check('One Ctrl+Enter produces one Image API call and a locked generated layer', async () => {
     await page.evaluate(() => {const h = globalThis.artboarding!; h.actions.fitFrameToContent(); h.editorStore.set({tool: 'frame'}); h.actions.fitViewToFrame()})
     const editor = (await (await page.$('.monaco-editor'))!.boundingBox())!

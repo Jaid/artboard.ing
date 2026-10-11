@@ -5,9 +5,9 @@
   "type": "module",
   "private": true,
   "description": "Non-destructive, multi-resolution image studio with a secure local Image API gateway",
+  "homepage": "https://artboard.ing",
   "funding": "https://github.com/sponsors/Jaid",
   "license": "MIT",
-  "homepage": "https://artboard.ing",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Jaid/artboard.ing.git"
@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "antimono": "0.1.0",
-    "clsx": "^2.1.1",
+    "clsx": "2.1.1",
     "idb": "8.0.4",
     "lucide-react": "1.55.0",
     "monacozen": "0.5.1",

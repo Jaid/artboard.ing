@@ -1,5 +1,5 @@
 {
-  "name": "layer-paint",
+  "name": "artboard.ing",
   "displayName": "LayerPaint",
   "version": "1.0.0",
   "type": "module",
@@ -7,9 +7,10 @@
   "description": "Non-destructive, multi-resolution image studio with a secure local Image API gateway",
   "funding": "https://github.com/sponsors/Jaid",
   "license": "MIT",
+  "homepage": "https://github.com/Jaid/artboard.ing",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jaid/layer-paint.git"
+    "url": "git+https://github.com/Jaid/artboard.ing.git"
   },
   "imports": {
     "#component/*": "./src/components/*/index.tsx",

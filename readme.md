@@ -5,7 +5,7 @@ A non-destructive image studio for building illustrations through local edits, r
 ## Run
 
 ```powershell
-cd C:/Users/jaid/git/layer-paint
+cd C:/Users/jaid/git/artboard.ing
 bun install --frozen-lockfile
 bun run dev
 ```

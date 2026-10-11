@@ -7,7 +7,7 @@
   "description": "Non-destructive, multi-resolution image studio with a secure local Image API gateway",
   "funding": "https://github.com/sponsors/Jaid",
   "license": "MIT",
-  "homepage": "https://github.com/Jaid/artboard.ing",
+  "homepage": "https://artboard.ing",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Jaid/artboard.ing.git"

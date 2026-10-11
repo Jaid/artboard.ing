@@ -1,7 +1,7 @@
-import {describe, expect, test} from 'bun:test'
-
 import type {Orientation} from '#src/lib/orientation.ts'
 import type {Ingredient, Layer, ProjectDocument} from '#src/lib/state.ts'
+
+import {describe, expect, test} from 'bun:test'
 
 import {getIngredientOrientation, getSourceAssetId, withIngredientOrientation} from '#src/lib/ingredientOrientation.ts'
 import {flips, getPixelTransform, getSymmetry, isIdentitySymmetry, rotations, swapRectAxes, swapsAxes} from '#src/lib/orientation.ts'
@@ -52,7 +52,6 @@ const orientations = rotations.flatMap(rotation => flips.map(flip => ({
   rotation,
   flip,
 })))
-
 describe('orientation', () => {
   test('every rotation and flip draws the original pixel-exactly', () => {
     for (const orientation of orientations) {
@@ -117,7 +116,6 @@ describe('orientation', () => {
     })
   })
 })
-
 const layer = (id: string, assetId: string, extra: Partial<Layer> = {}): Layer => ({
   id,
   assetId,
@@ -193,7 +191,6 @@ const quarterTurn: Orientation = {
   rotation: 90,
   flip: 'none',
 }
-
 describe('collection entry orientation', () => {
   test('layers showing the image follow the entry and turn their rect', () => {
     const next = withIngredientOrientation(document, 'ingredient', 'original', quarterTurn, {

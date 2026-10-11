@@ -114,18 +114,18 @@ export class AssetRegistry {
     }
   }
 
+  subscribe(listener: AssetListener) {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
   /** notifies derived caches that an asset was freed */
   subscribeRelease(listener: ReleaseListener) {
     this.#releaseListeners.add(listener)
     return () => {
       this.#releaseListeners.delete(listener)
-    }
-  }
-
-  subscribe(listener: AssetListener) {
-    this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
     }
   }
 }

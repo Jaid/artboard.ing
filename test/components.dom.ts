@@ -160,7 +160,7 @@ describe('components', () => {
     // No tool tab row and no undo/redo footer.
     expect(container.querySelector('[role="group"]')).toBeNull()
     expect(container.querySelector('footer')).toBeNull()
-    expect(container.textContent).not.toMatch(/Undo|Redo/)
+    expect(container.textContent).not.toMatch(/Redo|Undo/)
     // Selecting the image itself shows the color adjustments and content-aware alignment, but no mask controls.
     const adjustmentSliders = () => [...container.querySelectorAll<HTMLInputElement>('input[type="range"][data-adjustment]')].map(input => input.dataset.adjustment)
     expect(adjustmentSliders()).toEqual(['brightness', 'contrast', 'gamma', 'saturation', 'vibrance', 'temperature'])
@@ -542,7 +542,7 @@ describe('components', () => {
     // Visible layers have no eye button.
     expect(rows().some(row => row.querySelector('[aria-label="Hide layer"], [aria-label="Show layer"]'))).toBe(false)
     const selector = container.querySelector<HTMLElement>('[data-testid="revision-selector"]')!
-    expect(selector.textContent?.replaceAll(/[◂▸]/g, '')).toBe('2/3')
+    expect(selector.textContent?.replaceAll(/[▸◂]/g, '')).toBe('2/3')
     act(() => selector.querySelector<HTMLButtonElement>('[aria-label^="Show the next"]')!.click())
     expect(projectStore.state.layers[1].assetId).toBe('out-c')
     expect(projectStore.state.layers[1].evidence?.id).toBe('c')
@@ -636,7 +636,7 @@ describe('components', () => {
     const menu = await renderComponent('ContextMenu')
     const transformItem = (layerId: string) => {
       act(() => openContextMenu(10, 10, layerId))
-      const item = [...menu.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(button => /placement is locked|Transform/.test(button.textContent ?? ''))!
+      const item = [...menu.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(button => /Transform|placement is locked/.test(button.textContent ?? ''))!
       const result = {
         label: item.textContent,
         disabled: item.disabled,

@@ -1,5 +1,5 @@
-import type {FeatherMethodId} from './featherMethodIds.ts'
 import type {FeatherMethod} from './base/FeatherMethod.ts'
+import type {FeatherMethodId} from './featherMethodIds.ts'
 
 import queryParameters from '#src/queryParameters.ts'
 

@@ -1,5 +1,5 @@
-import type {ThumbnailFit} from '#src/lib/thumbnailFit.ts'
 import type {Ingredient} from '#src/lib/state.ts'
+import type {ThumbnailFit} from '#src/lib/thumbnailFit.ts'
 import type {MouseEvent, ReactNode} from 'react'
 
 import {useEffect, useId, useMemo, useRef, useSyncExternalStore} from 'react'
@@ -26,7 +26,6 @@ const kindTitles: Record<NonNullable<Ingredient['kind']>, string> = {
   generated: 'generation',
   snapshot: 'canvas snapshot',
 }
-
 const useAssetRevision = () => {
   const revision = useRef(0)
   return useSyncExternalStore(listener => assets.subscribe(() => {
@@ -75,6 +74,28 @@ type TileProps = {
   tooltip: ReactNode
   /** URL of the uncropped picture */
   unrolledSource?: string
+}
+
+/** The collection: the live frame view, then every numbered image as an equally tall thumbnail. Click inserts its reference; drag it onto the canvas or into the prompt. */
+export default function Ingredients() {
+  const ingredients = useStore(projectStore, state => state.ingredients)
+  const assetRevision = useAssetRevision()
+  const addFiles = async () => {
+    try {
+      for (const item of await addIngredients(await pickImageFiles())) {
+        insertIntoPrompt(getReferenceText(item))
+      }
+    } catch (error) {
+      notify('error', getErrorMessage(error))
+    }
+  }
+  return <section className={css.container} aria-label='Image collection' data-testid='ingredients'>
+    <div className={css.grid}>
+      <FrameView assetRevision={assetRevision} />
+      {ingredients.map(ingredient => <IngredientTile key={ingredient.id} ingredient={ingredient} />)}
+      {!ingredients.length && <button className={css.empty} type='button' onClick={() => void addFiles()}>Drop, paste or choose images for the collection</button>}
+    </div>
+  </section>
 }
 
 /** A collection tile. Hovering it reveals a rich tooltip above it and, if the thumbnail is cropped, the complete picture in place. */
@@ -164,7 +185,6 @@ function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId
     <div id={tooltipId} className={css.tooltip} popover='hint' role='tooltip' ref={tooltipRef}>{tooltip}</div>
   </div>
 }
-
 function TooltipContent({index, kind, title, details}: {
   details: ReadonlyArray<string>
   index: number
@@ -176,7 +196,6 @@ function TooltipContent({index, kind, title, details}: {
     {details.map(detail => <span key={detail} className={css.tooltipDetail}>{detail}</span>)}
   </>
 }
-
 /** Position 0 of the collection: a live view of `![0]`, the canvas inside the frame (or all artwork while the frame is off). */
 function FrameView({assetRevision}: {assetRevision: number}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -276,25 +295,4 @@ function IngredientTile({ingredient}: {ingredient: Ingredient}) {
     unrolledSource={asset?.url ?? (ingredient.thumbnail || undefined)}
     onDragStart={dataTransfer => startIngredientDrag(dataTransfer, ingredient)}
   />
-}
-/** The collection: the live frame view, then every numbered image as an equally tall thumbnail. Click inserts its reference; drag it onto the canvas or into the prompt. */
-export default function Ingredients() {
-  const ingredients = useStore(projectStore, state => state.ingredients)
-  const assetRevision = useAssetRevision()
-  const addFiles = async () => {
-    try {
-      for (const item of await addIngredients(await pickImageFiles())) {
-        insertIntoPrompt(getReferenceText(item))
-      }
-    } catch (error) {
-      notify('error', getErrorMessage(error))
-    }
-  }
-  return <section className={css.container} aria-label='Image collection' data-testid='ingredients'>
-    <div className={css.grid}>
-      <FrameView assetRevision={assetRevision} />
-      {ingredients.map(ingredient => <IngredientTile key={ingredient.id} ingredient={ingredient} />)}
-      {!ingredients.length && <button className={css.empty} type='button' onClick={() => void addFiles()}>Drop, paste or choose images for the collection</button>}
-    </div>
-  </section>
 }

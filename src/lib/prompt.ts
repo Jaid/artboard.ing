@@ -52,7 +52,6 @@ const closing = (text: string, start: number, open: string, close: string) => {
   }
   return -1
 }
-
 /** finds the closing parenthesis of a reference description, honoring nested parentheses and backslash escapes */
 const closingDescription = (text: string, start: number) => {
   let depth = 1
@@ -71,7 +70,7 @@ const closingDescription = (text: string, start: number) => {
 /** Standard Markdown image destinations like ![2](https://…), ![2](</a.png>) or ![2](logo.png "title") stay literal Markdown instead of becoming descriptions. */
 const looksLikeDestination = (raw: string) => {
   const first = raw.trim().split(/\s/, 1)[0]
-  return first.startsWith('<') || /^(?:[a-z][\d+.a-z-]*:\S|\.{0,2}\/|#)/i.test(first) || /^[^\s()]+\.(?:avif|gif|jpe?g|jxl|png|svg|webp)$/i.test(first)
+  return first.startsWith('<') || /^(?:[a-z][\d+\-.a-z]*:\S|\.{0,2}\/|#)/i.test(first) || /^[^\s()]+\.(?:avif|gif|jpe?g|jxl|png|svg|webp)$/i.test(first)
 }
 const normalizeDescription = (raw: string) => raw.replaceAll(/\\(.)/g, '$1').replaceAll(/\s+/g, ' ').trim()
 

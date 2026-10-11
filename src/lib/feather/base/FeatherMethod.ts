@@ -36,20 +36,18 @@ export const smootherstep = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
  * Every method describes the ramp through a depth field: 0 on the mask edge, 1 in the opaque core and NaN outside the mask. The profile then maps depth to alpha.
  */
 export abstract class FeatherMethod {
-  abstract readonly id: FeatherMethodId
-  abstract readonly title: string
   /** Whether {@link getOverlapAlpha} takes the coverage below the layer into account. */
   readonly coverageAware: boolean = false
-  /** depth of a point: 0 on the mask edge, 1 in the core, NaN outside the mask */
-  abstract getDepth(shape: FeatherShape, x: number, y: number): number
-  /** the opaque core that the viewport outlines */
-  abstract getCore(shape: FeatherShape): FeatherCore
-  /** maps depth in [0, 1] to alpha in [0, 1] */
-  abstract profile(depth: number): number
+  abstract readonly id: FeatherMethodId
+  abstract readonly title: string
   getAlpha(shape: FeatherShape, x: number, y: number) {
     const depth = this.getDepth(shape, x, y)
     return Number.isNaN(depth) ? 0 : this.profile(depth)
   }
+  /** the opaque core that the viewport outlines */
+  abstract getCore(shape: FeatherShape): FeatherCore
+  /** depth of a point: 0 on the mask edge, 1 in the core, NaN outside the mask */
+  abstract getDepth(shape: FeatherShape, x: number, y: number): number
   /** depths at the pixel centers of a width × height grid, row by row */
   getDepthField(shape: FeatherShape, width: number, height: number) {
     const field = new Float32Array(width * height)
@@ -74,4 +72,6 @@ export abstract class FeatherMethod {
     }
     return alpha
   }
+  /** maps depth in [0, 1] to alpha in [0, 1] */
+  abstract profile(depth: number): number
 }

@@ -1,6 +1,6 @@
-import {describe, expect, test} from 'bun:test'
-
 import type {GenerationEvidence, Layer} from '#src/lib/state.ts'
+
+import {describe, expect, test} from 'bun:test'
 
 import {collectDocumentAssetIds, parseProjectDocument} from '#src/lib/projectSchema.ts'
 import {getAssetOccurrences, getRevisionIndex, getRevisions, withAddedRevision, withRevision} from '#src/lib/revisions.ts'
@@ -46,7 +46,6 @@ const generated: Layer = {
     applied: false,
   },
 }
-
 describe('revisions', () => {
   test('a generation that was never rerolled has one revision', () => {
     expect(getRevisions(generated)).toHaveLength(1)

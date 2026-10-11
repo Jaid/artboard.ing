@@ -17,11 +17,12 @@ const transformLine = (input: Float64Array, output: Float64Array, length: number
       }
       count--
     }
-    if (count < 0) {
-      count = 0
-      vertices[0] = q
-      boundaries[0] = -Infinity
+    if (!(count < 0)) {
+      continue
     }
+    count = 0
+    vertices[0] = q
+    boundaries[0] = -Infinity
   }
   if (count < 0) {
     output.fill(Infinity, 0, length)

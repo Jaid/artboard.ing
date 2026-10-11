@@ -49,12 +49,10 @@ export default function LayersPanel() {
   const layers = useStore(projectStore, state => state.layers); const editor = useStore(editorStore)
   return <section className={clsx(css.panel, editor.layersPanelOpen && css.open)} aria-label='Layers' data-overlay-control data-testid='layers-panel'>
     <button className={css.header} aria-expanded={editor.layersPanelOpen} type='button' onClick={() => editorStore.set({layersPanelOpen: !editor.layersPanelOpen})}><Layers size={14} /><span>Layers</span><span className={css.count}>{layers.length}</span><ChevronDown className={css.chevron} size={14} /></button>
-    {editor.layersPanelOpen && <>
-      <ol className={css.list}>{layers.map((layer, index) => ({
-        layer,
-        index,
-      })).toReversed().map(({layer, index}) => <LayerRow key={layer.id} background={index === 0} layer={layer} selected={layer.id === editor.selectedLayerId} />)}</ol>
-    </>}
+    {editor.layersPanelOpen && <ol className={css.list}>{layers.map((layer, index) => ({
+      layer,
+      index,
+    })).toReversed().map(({layer, index}) => <LayerRow key={layer.id} background={index === 0} layer={layer} selected={layer.id === editor.selectedLayerId} />)}</ol>}
   </section>
 }
 function MaskSlider({layer, property, label, min = 0, max = 100}: {
@@ -110,7 +108,7 @@ function ContentAwareToggle({layer}: {layer: Layer}) {
   const unmatched = layer.contentAware && layer.alignment && !layer.alignment.applied
   return <label className={css.checkbox} title={supported ? 'Registers the output onto the canvas it was generated from, in case the model shifted or zoomed the content. The first activation analyzes the images; later toggles are instant.' : 'Only available for generations that had canvas content in their frame'}>
     <input aria-busy={pending} checked={Boolean(layer.contentAware)} data-testid='content-aware' disabled={!supported || pending} type='checkbox' onChange={event => void setContentAwareAlignment(layer.id, event.currentTarget.checked)} />
-    Content-aware alignment{pending ? ' · analyzing…' : unmatched ? ' · no drift found' : ''}
+    Content-aware alignment{pending ? ' · analyzing…' : (unmatched ? ' · no drift found' : '')}
   </label>
 }
 function TransformFields({layer}: {layer: Layer}) {
@@ -132,7 +130,7 @@ function TransformFields({layer}: {layer: Layer}) {
     updateLayer(layer.id, {rect}, {coalesceKey: `${field}:${layer.id}`})
   }
   return <div className={css.transformFields}>
-    {(['x', 'y', 'width', 'height'] as const).map(field => <label key={field}><span>{field === 'width' ? 'Width' : (field === 'height' ? 'Height' : field.toUpperCase())}</span><input aria-label={`${field} of ${layer.name}`} step={1} type='number' value={Math.round(layer.rect[field] * 100) / 100} onChange={event => edit(field, Number(event.currentTarget.value))} /></label>)}
+    {(['x', 'y', 'width', 'height'] as const).map(field => <label key={field}><span>{field === 'width' ? 'Width' : field === 'height' ? 'Height' : field.toUpperCase()}</span><input aria-label={`${field} of ${layer.name}`} step={1} type='number' value={Math.round(layer.rect[field] * 100) / 100} onChange={event => edit(field, Number(event.currentTarget.value))} /></label>)}
     <label><span>Rotation</span><input aria-label={`Rotation of ${layer.name}`} step={1} type='number' value={Math.round(layer.rotation ?? 0)} onChange={event => updateLayer(layer.id, {rotation: Number(event.currentTarget.value)}, {coalesceKey: `rotation:${layer.id}`})} /></label>
     <label className={css.checkbox}><input checked={locked} type='checkbox' onChange={event => setLocked(event.currentTarget.checked)} />Lock ratio</label>
   </div>
@@ -244,7 +242,6 @@ function LayerRow({layer, background, selected}: {
     </div>}
   </li>
 }
-
 const maskThumbnailSide = 64
 /** grayscale preview of a layer mask: white keeps the layer, black hides it */
 function MaskThumbnail({layer}: {layer: Layer}) {
@@ -258,8 +255,17 @@ function MaskThumbnail({layer}: {layer: Layer}) {
     if (!context) {
       return
     }
-    const size = {width, height}
-    const settings = {area, feather, offsetX, offsetY, roundness}
+    const size = {
+      width,
+      height,
+    }
+    const settings = {
+      area,
+      feather,
+      offsetX,
+      offsetY,
+      roundness,
+    }
     const pixels = context.createImageData(width, height)
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {

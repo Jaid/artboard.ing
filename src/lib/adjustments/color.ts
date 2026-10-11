@@ -76,7 +76,7 @@ export const getAdjustmentParameters = (adjustments: Adjustments = {}): Adjustme
 export const adjustColor = (color: [number, number, number], p: AdjustmentParameters) => {
   for (let channel = 0; channel < 3; channel++) {
     let value = clamp01(color[channel] * p.gains[channel] * p.brightness)
-    value = value ** p.exponent
+    value **= p.exponent
     color[channel] = clamp01((value - 0.5) * p.contrast + 0.5)
   }
   let luma = color[0] * lumaWeights[0] + color[1] * lumaWeights[1] + color[2] * lumaWeights[2]

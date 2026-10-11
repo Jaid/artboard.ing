@@ -31,7 +31,6 @@ const subscribeAssets = (listener: () => void) => {
     unsubscribeReleased()
   }
 }
-
 const getTransformLabel = (layer: Layer) => {
   if (layer.kind === 'generated') {
     return 'Generated placement is locked'
@@ -78,7 +77,7 @@ export default function ContextMenu() {
     closeContextMenu(); Promise.resolve().then(action).catch(error => notify('error', getErrorMessage(error)))
   }
   const button = (label: string, action: () => unknown, disabled = false) => <button disabled={disabled} role='menuitem' type='button' onClick={() => run(action)}>{label}</button>
-  const estimatedHeight = collection ? 220 : (layer ? 650 : 420)
+  const estimatedHeight = collection ? 220 : layer ? 650 : 420
   return <div
     className={css.menu} aria-label={collection ? 'Collection context menu' : 'Canvas context menu'} data-overlay-control role='menu' style={{
       top: Math.max(8, Math.min(menu.y, innerHeight - estimatedHeight)),
@@ -91,7 +90,7 @@ export default function ContextMenu() {
       const index = buttons.indexOf(document.activeElement as HTMLElement)
       if (['ArrowDown', 'ArrowUp', 'End', 'Home'].includes(event.key)) {
         event.preventDefault(); event.stopPropagation()
-        const next = event.key === 'Home' ? 0 : (event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length)
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
         buttons[next]?.focus()
       }
     }}

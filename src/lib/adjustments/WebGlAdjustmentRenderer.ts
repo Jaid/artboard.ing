@@ -1,5 +1,5 @@
-import type {AdjustmentParameters} from './color.ts'
 import type {AdjustableSource, AdjustedImage} from './base/AdjustmentRenderer.ts'
+import type {AdjustmentParameters} from './color.ts'
 
 import {AdjustmentRenderer} from './base/AdjustmentRenderer.ts'
 import {lumaWeights} from './color.ts'
@@ -12,7 +12,6 @@ void main() {
   uv = vec2(position.x * 0.5 + 0.5, 0.5 - position.y * 0.5);
   gl_Position = vec4(position, 0.0, 1.0);
 }`
-
 // Mirrors adjustColor() in color.ts.
 const fragmentShader = `#version 300 es
 precision highp float;
@@ -51,7 +50,6 @@ type Gl = {
 }
 
 const maxCachedTextures = 4
-
 /** A 2D canvas honors the unpack flags, so every upload has a known (premultiplied) alpha state. */
 const toCanvas = (source: AdjustableSource) => {
   if (source instanceof OffscreenCanvas) {

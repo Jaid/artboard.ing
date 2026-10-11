@@ -10,6 +10,12 @@ import {FeatherMethod, roundedBoxDistance, smoothstep} from './base/FeatherMetho
 export class DistanceFeather extends FeatherMethod {
   id = 'distance' as const
   title = 'Signed distance'
+  getCore(shape: FeatherShape) {
+    return {
+      inset: shape.transition,
+      radius: Math.max(0, shape.radius - shape.transition),
+    }
+  }
   getDepth(shape: FeatherShape, x: number, y: number) {
     const distance = roundedBoxDistance(Math.abs(x - shape.centerX), Math.abs(y - shape.centerY), shape.halfWidth, shape.halfHeight, shape.radius)
     if (distance > 0) {
@@ -19,12 +25,6 @@ export class DistanceFeather extends FeatherMethod {
       return 1
     }
     return Math.min(1, Math.max(0, -distance / shape.transition))
-  }
-  getCore(shape: FeatherShape) {
-    return {
-      inset: shape.transition,
-      radius: Math.max(0, shape.radius - shape.transition),
-    }
   }
   profile(depth: number) {
     return smoothstep(depth)

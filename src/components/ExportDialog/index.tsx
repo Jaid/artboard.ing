@@ -65,10 +65,12 @@ export default function ExportDialog() {
     {open && <>
       <header className={css.header}><h2>Export image</h2><IconButton className={css.close} aria-label='Close export' icon={X} size={18} title='Close · Esc' onClick={closeExportDialog} /></header>
       <p>The editable project always retains original image pixels.</p>
-      <label>Region<select aria-label='Export region' value={scope} onChange={event => exportDialogStore.set({
-        scope: event.currentTarget.value as ExportScope,
-        allowDownsample: false,
-      })}><option value='frame'>{editor.frameEnabled ? 'Current frame · ![0]' : 'Generation area · ![0]'}</option><option value='content'>All visible artwork</option></select></label>
+      <label>Region<select
+        aria-label='Export region' value={scope} onChange={event => exportDialogStore.set({
+          scope: event.currentTarget.value as ExportScope,
+          allowDownsample: false,
+        })}
+      ><option value='frame'>{editor.frameEnabled ? 'Current frame · ![0]' : 'Generation area · ![0]'}</option><option value='content'>All visible artwork</option></select></label>
       <label>Resolution<select
         aria-label='Export resolution policy' value={editor.exportMode} onChange={event => {
           editorStore.set({exportMode: event.currentTarget.value as typeof editor.exportMode}); setAllowDownsample(false)

@@ -56,11 +56,17 @@ describe('layer transforms', () => {
     expect(getLayer('base').rotation).toBeUndefined()
     expect(projectStore.meta.state.canUndo).toBe(false)
     // Everything that is not placement remains editable.
-    updateLayer('base', {opacity: 0.5, name: 'renamed'})
+    updateLayer('base', {
+      opacity: 0.5,
+      name: 'renamed',
+    })
     expect(getLayer('base').opacity).toBe(0.5)
     expect(getLayer('base').name).toBe('renamed')
     // A patch that mixes placement with other properties is rejected as a whole.
-    updateLayer('base', {rect: moved, visible: false})
+    updateLayer('base', {
+      rect: moved,
+      visible: false,
+    })
     expect(getLayer('base').visible).toBe(true)
   })
   test('imported layers above the base still transform', () => {
@@ -68,7 +74,10 @@ describe('layer transforms', () => {
       layers: [layer('base'), layer('import')],
       ingredients: [],
     })
-    updateLayer('import', {rect: moved, rotation: 30})
+    updateLayer('import', {
+      rect: moved,
+      rotation: 30,
+    })
     expect(getLayer('import').rect).toEqual(moved)
     expect(getLayer('import').rotation).toBe(30)
   })

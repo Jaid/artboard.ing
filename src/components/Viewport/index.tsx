@@ -12,12 +12,12 @@ import {getDroppedIngredient, isIngredientDrag} from '#src/lib/collectionDrag.ts
 import {useHoveredCollectionAssetId} from '#src/lib/collectionHover.ts'
 import {findLayerAt, renderRegion} from '#src/lib/composite.ts'
 import {openContextMenu} from '#src/lib/contextMenu.ts'
+import {getContentRegion} from '#src/lib/generationRegion.ts'
 import {rectCenter, rectContains, rectFromCenter} from '#src/lib/geometry.ts'
 import {corners, getSnapTargets, moveRectWithSnapping, resizeFrameFromEdge, resizeRectFromCorner} from '#src/lib/interaction.ts'
 import {getLayerBounds, layerToWorld, worldToLayer} from '#src/lib/layerGeometry.ts'
 import {getFeatherCore, getMaskMetrics} from '#src/lib/mask.ts'
 import {getModel} from '#src/lib/models/index.ts'
-import {getContentRegion} from '#src/lib/generationRegion.ts'
 import {getErrorMessage, notify} from '#src/lib/notices.ts'
 import {getAssetOccurrences} from '#src/lib/revisions.ts'
 import {editorStore, projectStore} from '#src/lib/state.ts'
@@ -125,7 +125,7 @@ export default function Viewport() {
     const wheel = (event: WheelEvent) => {
       event.preventDefault()
       const bounds = element.getBoundingClientRect(); const view = editorStore.state.view
-      const unit = event.deltaMode === 1 ? 16 : (event.deltaMode === 2 ? bounds.height : 1)
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1
       const dx = event.deltaX * unit; const dy = event.deltaY * unit
       if (event.shiftKey || !event.ctrlKey && dx !== 0) {
         editorStore.set({view: {
@@ -397,11 +397,6 @@ export default function Viewport() {
       backgroundSize: `${grid}px ${grid}px`,
       backgroundPosition: `${view.x}px ${view.y}px`,
     }} tabIndex={0} ref={ref}
-    onDragOver={event => {
-      if (isIngredientDrag(event.dataTransfer)) {
-        event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy'
-      }
-    }} onDrop={dropIngredient}
     onContextMenu={event => {
       event.preventDefault(); const world = screenToWorld(editorStore.state.view, pointOf(event)); const hit = findLayerAt(projectStore.state.layers, world); openContextMenu(event.clientX, event.clientY, hit?.id ?? null, world)
     }} onDoubleClick={event => {
@@ -411,7 +406,12 @@ export default function Viewport() {
           frameEnabled: true,
         })
       }
-    }} onKeyDown={event => {
+    }}
+    onDragOver={event => {
+      if (isIngredientDrag(event.dataTransfer)) {
+        event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy'
+      }
+    }} onDrop={dropIngredient} onKeyDown={event => {
       if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') {
         event.preventDefault(); const box = ref.current!.getBoundingClientRect(); openContextMenu(box.left + box.width / 2, box.top + box.height / 2, selectedLayerId)
       }

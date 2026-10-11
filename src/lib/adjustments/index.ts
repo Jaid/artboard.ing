@@ -1,5 +1,5 @@
-import type {Adjustments} from './color.ts'
 import type {AdjustableSource, AdjustedImage, AdjustmentRenderer} from './base/AdjustmentRenderer.ts'
+import type {Adjustments} from './color.ts'
 
 import {getAdjustmentParameters, getAdjustmentsKey, isNeutral} from './color.ts'
 import {CpuAdjustmentRenderer} from './CpuAdjustmentRenderer.ts'
@@ -72,7 +72,7 @@ export const getAdjustedImage = (source: AdjustableSource, sourceKey: string, ad
 
 /** drops cached copies of a source, for example when its asset is freed */
 export const forgetAdjustedImages = (sourceKey: string) => {
-  for (const key of [...cache.keys()]) {
+  for (const key of cache.keys()) {
     if (key.startsWith(`${sourceKey}|`)) {
       release(key)
     }

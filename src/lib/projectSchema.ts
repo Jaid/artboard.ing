@@ -267,7 +267,6 @@ function parseAdjustments(v: unknown) {
   }
   return normalizeAdjustments(parsed)
 }
-
 function evidence(v: unknown): GenerationEvidence | undefined {
   if (v === undefined) {
     return undefined

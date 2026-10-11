@@ -9,7 +9,6 @@ import {parseProjectDocument} from '#src/lib/projectSchema.ts'
 const apply = (color: [number, number, number], adjustments: Parameters<typeof getAdjustmentParameters>[0]) => adjustColor([...color], getAdjustmentParameters(adjustments))
 const luma = ([r, g, b]: Array<number>) => 0.2126 * r + 0.7152 * g + 0.0722 * b
 const chroma = (color: Array<number>) => Math.max(...color) - Math.min(...color)
-
 describe('color adjustments', () => {
   test('neutral adjustments are an identity', () => {
     const color: [number, number, number] = [0.2, 0.55, 0.9]
@@ -22,8 +21,18 @@ describe('color adjustments', () => {
     expect(isNeutral({contrast: 0.1})).toBe(false)
   })
   test('normalization drops neutral values and clamps the rest', () => {
-    expect(normalizeAdjustments({brightness: 0, gamma: 0})).toBeUndefined()
-    expect(normalizeAdjustments({saturation: 3, vibrance: -0.2, contrast: Number.NaN})).toEqual({saturation: 1, vibrance: -0.2})
+    expect(normalizeAdjustments({
+      brightness: 0,
+      gamma: 0,
+    })).toBeUndefined()
+    expect(normalizeAdjustments({
+      saturation: 3,
+      vibrance: -0.2,
+      contrast: Number.NaN,
+    })).toEqual({
+      saturation: 1,
+      vibrance: -0.2,
+    })
   })
   test('brightness, contrast and gamma move tones in the expected direction', () => {
     const gray: [number, number, number] = [0.4, 0.4, 0.4]
@@ -57,7 +66,6 @@ describe('color adjustments', () => {
     expect(vividGain).toBeGreaterThanOrEqual(1)
   })
 })
-
 const generated = (extra: Partial<Layer> = {}): Layer => ({
   id: 'g',
   assetId: 'output',
@@ -75,7 +83,6 @@ const generated = (extra: Partial<Layer> = {}): Layer => ({
   },
   ...extra,
 })
-
 describe('content-aware alignment', () => {
   const alignment = {
     x: 0.1,

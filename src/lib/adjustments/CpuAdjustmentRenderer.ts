@@ -1,5 +1,5 @@
-import type {AdjustmentParameters} from './color.ts'
 import type {AdjustableSource, AdjustedImage} from './base/AdjustmentRenderer.ts'
+import type {AdjustmentParameters} from './color.ts'
 
 import {createCanvas} from '#src/lib/image.ts'
 

@@ -29,7 +29,6 @@ const diagonalCurvature = (method: FeatherMethod, target: FeatherShape) => {
   }
   return worst
 }
-
 describe('feather method selection', () => {
   test('smooth is the default and the URL parameter is typed', () => {
     expect(queryParameters.feather_method).toBe('smooth')
@@ -43,7 +42,6 @@ describe('feather method selection', () => {
     expect(parseFeatherMethodId(undefined)).toBe('smooth')
   })
 })
-
 describe('distance feather', () => {
   test('keeps the original smoothstep over the signed distance', () => {
     const target = shape(0.2, 0.5)
@@ -55,7 +53,6 @@ describe('distance feather', () => {
     }
   })
 })
-
 describe('smooth feather', () => {
   test('straight edges keep exactly the requested feather width', () => {
     const target = shape(0, 0.5)
@@ -146,7 +143,6 @@ describe('smooth feather', () => {
     }
   })
 })
-
 describe('mask integration', () => {
   test('getMaskAlpha honors the method', () => {
     const settings = {
@@ -180,7 +176,6 @@ describe('mask integration', () => {
     expect(getFeatherCore(settings, size, featherMethods.smooth).radius).toBeGreaterThan(10)
   })
 })
-
 describe('distance transform', () => {
   test('matches brute force', () => {
     const width = 37; const height = 23

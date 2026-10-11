@@ -16,24 +16,9 @@ const tolerance = 1e-3
  * Where a layer overlaps artwork that ends inside the feather band, the overlap normally switches from blended to opaque along the edge of that artwork. This method pulls the layer opaque in a smooth wedge toward such seams instead, so the edge of the underlying artwork never shows through as a hard line.
  */
 export class SmoothFeather extends FeatherMethod {
+  override readonly coverageAware = true
   id = 'smooth' as const
   title = 'Smooth contours'
-  override readonly coverageAware = true
-  /** half sizes and corner radius of the contour at depth t */
-  getContour(shape: FeatherShape, depth: number) {
-    const shortSide = Math.min(shape.halfWidth, shape.halfHeight)
-    const inset = depth * shape.transition
-    const halfShort = Math.max(0, shortSide - inset)
-    // roundness of the mask itself, as a fraction of the shorter half side
-    const roundness = shortSide > 0 ? Math.min(1, shape.radius / shortSide) : 1
-    // Grows like depth × feather near the edge and reaches a capsule when the contour collapses, while never exceeding the shorter half side.
-    const radius = shortSide > 0 ? halfShort * (1 - (1 - roundness) * halfShort / shortSide) : 0
-    return {
-      halfWidth: Math.max(0, shape.halfWidth - inset),
-      halfHeight: Math.max(0, shape.halfHeight - inset),
-      radius,
-    }
-  }
   /** a depth function with the shape constants hoisted, since it runs for every mask pixel */
   createSolver(shape: FeatherShape) {
     const {centerX, centerY, halfWidth, halfHeight, transition} = shape
@@ -47,9 +32,9 @@ export class SmoothFeather extends FeatherMethod {
       const radius = halfShort * (1 - flatness * halfShort)
       const qx = ax - Math.max(0, halfWidth - inset) + radius
       const qy = ay - Math.max(0, halfHeight - inset) + radius
-      const px = qx > 0 ? qx : 0; const py = qy > 0 ? qy : 0
-      const inner = qx > qy ? qx : qy
-      return Math.sqrt(px * px + py * py) + (inner < 0 ? inner : 0) - radius
+      const px = Math.max(qx, 0); const py = Math.max(qy, 0)
+      const inner = Math.max(qx, qy)
+      return Math.hypot(px, py) + Math.min(inner, 0) - radius
     }
     return (x: number, y: number) => {
       const ax = Math.abs(x - centerX); const ay = Math.abs(y - centerY)
@@ -98,6 +83,27 @@ export class SmoothFeather extends FeatherMethod {
       return (low + high) / 2
     }
   }
+  /** half sizes and corner radius of the contour at depth t */
+  getContour(shape: FeatherShape, depth: number) {
+    const shortSide = Math.min(shape.halfWidth, shape.halfHeight)
+    const inset = depth * shape.transition
+    const halfShort = Math.max(0, shortSide - inset)
+    // roundness of the mask itself, as a fraction of the shorter half side
+    const roundness = shortSide > 0 ? Math.min(1, shape.radius / shortSide) : 1
+    // Grows like depth × feather near the edge and reaches a capsule when the contour collapses, while never exceeding the shorter half side.
+    const radius = shortSide > 0 ? halfShort * (1 - (1 - roundness) * halfShort / shortSide) : 0
+    return {
+      halfWidth: Math.max(0, shape.halfWidth - inset),
+      halfHeight: Math.max(0, shape.halfHeight - inset),
+      radius,
+    }
+  }
+  getCore(shape: FeatherShape) {
+    return {
+      inset: shape.transition,
+      radius: this.getContour(shape, 1).radius,
+    }
+  }
   getDepth(shape: FeatherShape, x: number, y: number) {
     return this.createSolver(shape)(x, y)
   }
@@ -111,20 +117,10 @@ export class SmoothFeather extends FeatherMethod {
     }
     return field
   }
-  getCore(shape: FeatherShape) {
-    return {
-      inset: shape.transition,
-      radius: this.getContour(shape, 1).radius,
-    }
-  }
-  profile(depth: number) {
-    return smootherstep(Math.min(1, Math.max(0, depth)))
-  }
   override getOverlapAlpha(depth: Float32Array, uncovered: Uint8Array, width: number, height: number, transition: number) {
     const seamDistance = distanceTransform(uncovered, width, height)
     const alpha = new Uint8ClampedArray(depth.length)
-    for (let index = 0; index < depth.length; index++) {
-      const value = depth[index]
+    for (const [index, value] of depth.entries()) {
       if (Number.isNaN(value)) {
         continue
       }
@@ -139,5 +135,8 @@ export class SmoothFeather extends FeatherMethod {
       alpha[index] = Math.round((1 - reveal * wedge) * 255)
     }
     return alpha
+  }
+  profile(depth: number) {
+    return smootherstep(Math.min(1, Math.max(0, depth)))
   }
 }

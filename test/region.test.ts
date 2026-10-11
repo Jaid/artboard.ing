@@ -216,11 +216,26 @@ describe('collection thumbnails', () => {
 })
 describe('collection export', () => {
   test('file names follow the item name and its original format', () => {
-    expect(getIngredientFileName({index: 3, name: 'red'}, 'image/png')).toBe('red.png')
-    expect(getIngredientFileName({index: 3, name: 'a/b: "c"?'}, 'image/jpeg')).toBe('a b c.jpg')
-    expect(getIngredientFileName({index: 4, name: '…'}, 'image/webp')).toBe('….webp')
-    expect(getIngredientFileName({index: 5, name: ' / '}, 'image/svg+xml')).toBe('artboarding_5.svg')
-    expect(getIngredientFileName({index: 6, name: '..hidden'}, 'image/jxl')).toBe('hidden.jxl')
+    expect(getIngredientFileName({
+      index: 3,
+      name: 'red',
+    }, 'image/png')).toBe('red.png')
+    expect(getIngredientFileName({
+      index: 3,
+      name: 'a/b: "c"?',
+    }, 'image/jpeg')).toBe('a b c.jpg')
+    expect(getIngredientFileName({
+      index: 4,
+      name: '…',
+    }, 'image/webp')).toBe('….webp')
+    expect(getIngredientFileName({
+      index: 5,
+      name: ' / ',
+    }, 'image/svg+xml')).toBe('artboarding_5.svg')
+    expect(getIngredientFileName({
+      index: 6,
+      name: '..hidden',
+    }, 'image/jxl')).toBe('hidden.jxl')
   })
   test('the frame export region is what ![0] shows, also while the frame is off', () => {
     const frame = {

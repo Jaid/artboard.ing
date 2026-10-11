@@ -238,7 +238,7 @@ describe('prompt', () => {
     expect(compiled.text).toContain('Please add this witch [Image 2] to the image')
   })
   test('described references are found with their description and ranges', () => {
-    const text = 'a ![1](the (tall) tower) b ![2]( spaced \\) out ) c ![0](this scene)'
+    const text = String.raw`a ![1](the (tall) tower) b ![2]( spaced \) out ) c ![0](this scene)`
     const tokens = findReferences(text)
     expect(tokens.map(token => [token.index, token.description])).toEqual([[1, 'the (tall) tower'], [2, 'spaced ) out'], [0, 'this scene']])
     expect(text.slice(tokens[0].start, tokens[0].referenceEnd)).toBe('![1]')

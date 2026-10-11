@@ -29,7 +29,6 @@ const setPending = (id: string, pending: boolean) => contentAwareStore.set(state
   }
   return {pending: next}
 })
-
 /** Applies the registration to every layer that shares the same output, without an extra undo step. */
 const storeAlignment = (assetId: string, alignment: LayerAlignment) => projectStore.set(document => ({
   ...document,

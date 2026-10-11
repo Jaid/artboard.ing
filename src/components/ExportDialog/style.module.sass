@@ -8,10 +8,6 @@
   color: var(--text)
   background: var(--panel)
   box-shadow: 0 20px 100px #0008
-  header
-    display: flex
-    align-items: center
-    justify-content: space-between
   h2
     margin: 0
     font-size: 20px
@@ -24,7 +20,7 @@
     gap: 7px
     margin: 14px 0
     font-size: 12px
-  select, input, button
+  select, input, button:not(.close)
     background: var(--surface)
     color: inherit
     border: 1px solid var(--border)
@@ -34,6 +30,20 @@
   &::backdrop
     background: #0009
     backdrop-filter: blur(6px)
+
+.header
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 12px
+
+// a quiet ghost button that sits in the corner, optically aligned with the dialog padding
+.header .close
+  width: 32px
+  height: 32px
+  margin: -6px -8px -6px 0
+  padding: 0
+  border-radius: 50%
 
 .dimensions
   display: block

@@ -1,7 +1,9 @@
 import type {ExportScope} from '#src/lib/exporting.ts'
 
+import {X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
+import IconButton from '#component/IconButton'
 import {closeExportDialog, copyImage, exportDialogStore, exportFormats, exportImage, getExportPlan, getExportRegion} from '#src/lib/exporting.ts'
 import {getErrorMessage} from '#src/lib/notices.ts'
 import {editorStore, projectStore} from '#src/lib/state.ts'
@@ -61,7 +63,7 @@ export default function ExportDialog() {
     }} onClose={closeExportDialog}
   >
     {open && <>
-      <header><h2>Export image</h2><button aria-label='Close export' type='button' onClick={closeExportDialog}>×</button></header>
+      <header className={css.header}><h2>Export image</h2><IconButton className={css.close} aria-label='Close export' icon={X} size={18} title='Close · Esc' onClick={closeExportDialog} /></header>
       <p>The editable project always retains original image pixels.</p>
       <label>Region<select aria-label='Export region' value={scope} onChange={event => exportDialogStore.set({
         scope: event.currentTarget.value as ExportScope,

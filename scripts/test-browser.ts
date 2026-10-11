@@ -646,43 +646,6 @@ try {
     assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), 2)
   })
 
-  await check('Workspaces, settings and project files from before the LayerPaint rename carry over', async () => {
-    const opened = await page.evaluate(async () => {
-      const h = globalThis.artboarding!, legacy = JSON.parse(await h.serializeProject())
-      await h.openPortableProject(new Blob([JSON.stringify({...legacy, format: 'layerpaint'})], {type: 'application/json'}))
-      await h.flushAutosave()
-      return h.projectStore.state.layers.length
-    })
-    assert.equal(opened, 2)
-    await page.evaluate(async () => {
-      const open = (name: string) => new Promise<IDBDatabase>((resolve, reject) => {const request = indexedDB.open(name, 1); request.onupgradeneeded = () => {request.result.createObjectStore('assets', {keyPath: 'id'}); request.result.createObjectStore('state')}; request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)})
-      const request = <T,>(value: IDBRequest<T>) => new Promise<T>((resolve, reject) => {value.onsuccess = () => resolve(value.result); value.onerror = () => reject(value.error)})
-      const current = await open('artboarding'), legacy = await open('layer-paint-definitive')
-      try {
-        const read = current.transaction(['assets', 'state']), project = await request(read.objectStore('state').get('project')), assets = await request(read.objectStore('assets').getAll())
-        project.editor.prompt = 'Recovered from LayerPaint'
-        const write = legacy.transaction(['assets', 'state'], 'readwrite')
-        for (const asset of assets) write.objectStore('assets').put(asset)
-        write.objectStore('state').put(project, 'project')
-        await new Promise<void>((resolve, reject) => {write.oncomplete = () => resolve(); write.onerror = () => reject(write.error)})
-        const clear = current.transaction(['assets', 'state'], 'readwrite')
-        clear.objectStore('assets').clear(); clear.objectStore('state').clear()
-        await new Promise<void>((resolve, reject) => {clear.oncomplete = () => resolve(); clear.onerror = () => reject(clear.error)})
-      } finally {current.close(); legacy.close()}
-      localStorage.removeItem('artboarding:theme'); localStorage.setItem('layerpaint:theme', 'light')
-    })
-    await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-    const migrated = await page.evaluate(async () => ({
-      prompt: globalThis.artboarding!.editorStore.state.prompt,
-      layers: globalThis.artboarding!.projectStore.state.layers.length,
-      light: document.documentElement.hasAttribute('data-light'),
-      legacy: (await indexedDB.databases()).some(info => info.name === 'layer-paint-definitive'),
-    }))
-    assert.deepEqual(migrated, {prompt: 'Recovered from LayerPaint', layers: 2, light: true, legacy: false})
-    await page.evaluate(() => {localStorage.removeItem('layerpaint:theme'); localStorage.setItem('artboarding:theme', 'dark')})
-    await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-  })
-
   await check('Rotating and flipping a collection entry keeps every layer of it in sync, losslessly and undoably', async () => {
     const setup = await page.evaluate(async () => {
       const h = globalThis.artboarding!

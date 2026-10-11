@@ -3,7 +3,7 @@ import type {Point} from './geometry.ts'
 import {addIngredients, importLayers} from './actions.ts'
 import {persistenceStore} from './autosave.ts'
 import {getErrorMessage, notify} from './notices.ts'
-import {openPortableProject, projectFileExtensions} from './portableProject.ts'
+import {openPortableProject} from './portableProject.ts'
 import {insertIntoPrompt} from './promptEditor.ts'
 import {editorStore, projectStore} from './state.ts'
 import {screenToWorld} from './viewport.ts'
@@ -28,7 +28,7 @@ export const routeDroppedFiles = async (files: ReadonlyArray<File>, target: 'can
   if (!persistenceStore.state.hydrated) {
     notify('info', 'The saved workspace is still opening. Drop the file once recovery has finished.'); return
   }
-  const projects = files.filter(file => projectFileExtensions.some(extension => file.name.toLowerCase().endsWith(extension)))
+  const projects = files.filter(file => file.name.toLowerCase().endsWith('.artboarding'))
   if (projects.length) {
     if (files.length !== 1) {
       notify('error', 'Open one project file at a time.'); return

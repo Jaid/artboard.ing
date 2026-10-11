@@ -1,7 +1,7 @@
 import type {EditorState, ProjectDocument} from './state.ts'
 import type {DBSchema, IDBPDatabase} from 'idb'
 
-import {deleteDB, openDB} from 'idb'
+import {openDB} from 'idb'
 
 export type StoredAsset = {
   blob: Blob
@@ -25,31 +25,6 @@ interface Database extends DBSchema {
   }
 }
 let pending: Promise<IDBPDatabase<Database>> | undefined
-const legacyDatabaseName = 'layer-paint-definitive'
-
-/** Moves a workspace saved before the LayerPaint → artboard.ing rename into the current database, then drops the old one. */
-async function migrateLegacyDatabase(db: IDBPDatabase<Database>) {
-  const databases = await indexedDB.databases()
-  if (!databases.some(info => info.name === legacyDatabaseName) || await db.get('state', 'project')) {
-    return
-  }
-  const legacy = await openDB<Database>(legacyDatabaseName, 1)
-  try {
-    if (!legacy.objectStoreNames.contains('state') || !legacy.objectStoreNames.contains('assets')) {
-      return
-    }
-    const project = await legacy.get('state', 'project')
-    if (!project) {
-      return
-    }
-    const storedAssets = await legacy.getAll('assets')
-    const transaction = db.transaction(['assets', 'state'], 'readwrite')
-    await Promise.all([...storedAssets.map(asset => transaction.objectStore('assets').put(asset)), transaction.objectStore('state').put(project, 'project'), transaction.done])
-  } finally {
-    legacy.close()
-  }
-  await deleteDB(legacyDatabaseName)
-}
 const openDatabase = () => {
   pending ??= openDB<Database>('artboarding', 1, {
     upgrade(db) {
@@ -61,8 +36,6 @@ const openDatabase = () => {
     terminated() {
       pending = undefined
     },
-  }).then(async db => {
-    await migrateLegacyDatabase(db); return db
   }).catch(error => {
     pending = undefined; throw error
   })

@@ -231,8 +231,8 @@ function LayerRow({layer, background, selected}: {
           })}
         >Reset mask</button>
       </>}
-      {background && <p className={css.note}>The bottom layer is the unmasked base.</p>}
-      {layer.kind === 'import' && <>
+      {background && <p className={css.note}>The bottom layer is the unmasked base. Its placement is locked.</p>}
+      {layer.kind === 'import' && !background && <>
         <button className={css.editTransform} aria-pressed={tool === 'image'} type='button' onClick={() => editorStore.set({tool: tool === 'image' ? 'frame' : 'image'})}>{tool === 'image' ? 'Finish transform' : 'Move, resize & rotate'}</button>
         {tool === 'image' && <TransformFields layer={layer} />}
       </>}

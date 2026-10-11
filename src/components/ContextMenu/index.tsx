@@ -1,9 +1,9 @@
 import type {Flip, Orientation, Rotation} from '#src/lib/orientation.ts'
-import type {Ingredient} from '#src/lib/state.ts'
+import type {Ingredient, Layer} from '#src/lib/state.ts'
 
 import {useEffect, useRef, useSyncExternalStore} from 'react'
 
-import {addIngredients, fitFrameToContent, fitFrameToRect, fitViewToContent, fitViewToFrame, importLayers, moveLayerInStack, redo, removeIngredient, removeLayer, selectLayer, undo, updateLayer} from '#src/lib/actions.ts'
+import {addIngredients, fitFrameToContent, fitFrameToRect, fitViewToContent, fitViewToFrame, importLayers, isLayerTransformable, moveLayerInStack, redo, removeIngredient, removeLayer, selectLayer, undo, updateLayer} from '#src/lib/actions.ts'
 import {assets} from '#src/lib/assets.ts'
 import {closeContextMenu, contextMenuStore} from '#src/lib/contextMenu.ts'
 import {exportIngredient, openExportDialog} from '#src/lib/exporting.ts'
@@ -30,6 +30,13 @@ const subscribeAssets = (listener: () => void) => {
     unsubscribeAdded()
     unsubscribeReleased()
   }
+}
+
+const getTransformLabel = (layer: Layer) => {
+  if (layer.kind === 'generated') {
+    return 'Generated placement is locked'
+  }
+  return isLayerTransformable(layer) ? 'Transform imported image' : 'Base layer placement is locked'
 }
 
 export default function ContextMenu() {
@@ -111,9 +118,9 @@ export default function ContextMenu() {
         {button('Use as prompt reference', async () => {
           const ingredient = await referenceAsset(layer.assetId, layer.name, layer.kind === 'generated' ? 'generated' : 'import'); insertIntoPrompt(`![${ingredient.index}]`)
         })}
-        {button(layer.kind === 'import' ? 'Transform imported image' : 'Generated placement is locked', () => {
+        {button(getTransformLabel(layer), () => {
           selectLayer(layer.id); editorStore.set({tool: 'image'})
-        }, layer.kind !== 'import')}
+        }, !isLayerTransformable(layer))}
         {button('Edit mask', () => {
           selectLayer(layer.id); editorStore.set({tool: 'mask'})
         }, projectStore.state.layers[0]?.id === layer.id)}

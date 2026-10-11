@@ -10,7 +10,7 @@ import {closestRatio, isRatioString, parseRatio} from './ratio.ts'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const fail = (): never => {
-  throw new Error('Invalid or unsupported LayerPaint project. The existing workspace was not replaced.')
+  throw new Error('Invalid or unsupported artboard.ing project. The existing workspace was not replaced.')
 }
 const text = (v: unknown, limit = 200) => (typeof v === 'string' && v.length > 0 && v.length <= limit ? v : fail())
 const number = (v: unknown, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : fail())

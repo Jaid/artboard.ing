@@ -233,7 +233,7 @@ const PromptEditor = () => {
     decorationsRef.current = editor.createDecorationsCollection()
     registerProviders(monaco)
     editor.addAction({
-      id: 'layerpaint.generate',
+      id: 'artboarding.generate',
       label: 'Generate',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
       run: () => {
@@ -254,7 +254,7 @@ const PromptEditor = () => {
         endColumn: selection.startColumn,
       })
       const padded = before && !/\s/.test(before) ? ` ${text}` : text
-      editor.executeEdits('layerpaint', [{
+      editor.executeEdits('artboarding', [{
         range: selection,
         text: padded,
         forceMoveMarkers: true,

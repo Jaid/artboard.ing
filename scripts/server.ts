@@ -25,7 +25,7 @@ export function startServer(options: {serveFiles?: boolean; port?: number; allow
       const exists = path !== root && await file.exists()
       if (!exists && extname(path)) return new Response('Not found.', {status: 404})
       const result = exists ? file : Bun.file(resolve(root, 'index.html'))
-      if (!await result.exists()) return new Response('Build LayerPaint with bun run build first.', {status: 503})
+      if (!await result.exists()) return new Response('Build artboard.ing with bun run build first.', {status: 503})
       return new Response(request.method === 'HEAD' ? null : result, {headers: {'Content-Type': result.type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cross-Origin-Resource-Policy': 'same-origin'}})
     },
   })
@@ -33,5 +33,5 @@ export function startServer(options: {serveFiles?: boolean; port?: number; allow
 }
 if (import.meta.main) {
   const server = startServer()
-  console.log('LayerPaint: ' + server.url)
+  console.log('artboard.ing: ' + server.url)
 }

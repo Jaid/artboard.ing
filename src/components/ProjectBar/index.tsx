@@ -6,7 +6,7 @@ import {useRef, useState} from 'react'
 import {getErrorMessage, notify} from '#src/lib/notices.ts'
 import {useStore} from '#src/lib/store/index.ts'
 import {applyTheme, themeStore} from '#src/lib/theme.ts'
-import {newProject, openPortableProject, savePortableProject} from '#src/lib/workspaceIO.ts'
+import {newProject, openPortableProject, projectFileExtensions, savePortableProject} from '#src/lib/workspaceIO.ts'
 
 import css from './style.module.sass'
 
@@ -30,7 +30,7 @@ export default function ProjectBar() {
     <button disabled={busy} title='Save an editable copy with original images' type='button' onClick={() => void run(savePortableProject)}>Save project</button>
     <select aria-label='Color scheme' value={theme} onChange={event => applyTheme(event.currentTarget.value as Theme)}><option value='dark'>Dark</option><option value='light'>Light</option><option value='system'>System</option></select>
     <input
-      accept='.layerpaint' aria-label='Open project file' hidden type='file' ref={input} onChange={event => {
+      accept={projectFileExtensions.join(',')} aria-label='Open project file' hidden type='file' ref={input} onChange={event => {
         const file = event.currentTarget.files?.[0]
         event.currentTarget.value = ''
         if (file && confirm('Open this project? Save a project copy first to preserve your current prompt and view settings.')) {

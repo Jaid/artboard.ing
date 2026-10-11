@@ -9,6 +9,10 @@ import {blobToDataUrl, decodeImage} from './image.ts'
 import {collectDocumentAssetIds, isRecord, parseEditor, parseProjectDocument} from './projectSchema.ts'
 import {editorStore, projectStore} from './state.ts'
 
+/** Project files saved before the LayerPaint → artboard.ing rename still open. */
+export const projectFileExtensions = ['.artboarding', '.layerpaint']
+const projectFormats = new Set(['artboarding', 'layerpaint'])
+
 /** Local, user-initiated project export. Credentials are not part of either serialized state type. */
 export async function serializeProject(): Promise<string> {
   const document = projectStore.state; const editor = getPersistedEditorState()
@@ -17,7 +21,7 @@ export async function serializeProject(): Promise<string> {
     dataUrl: await blobToDataUrl(assets.require(id).blob),
   })))
   return JSON.stringify({
-    format: 'layerpaint',
+    format: 'artboarding',
     version: 1,
     savedAt: Date.now(),
     document,
@@ -30,7 +34,7 @@ export async function savePortableProject() {
   if (new Blob([content]).size > 200_000_000) {
     throw new Error('This project exceeds the 200 mb portable-file limit. Export a smaller workspace.')
   }
-  downloadBlob(new Blob([content], {type: 'application/json'}), createFileName('layerpaint'))
+  downloadBlob(new Blob([content], {type: 'application/json'}), createFileName('artboarding'))
 }
 
 /** Validate and decode a user-selected file before replacing the workspace. Incoming asset IDs are remapped. */
@@ -41,8 +45,8 @@ export async function openPortableProject(file: Blob | File) {
     throw new Error('Project files must be smaller than 200 mb.')
   }
   const value: unknown = JSON.parse(await file.text())
-  if (!isRecord(value) || value.format !== 'layerpaint' || value.version !== 1 || !Array.isArray(value.assets) || value.assets.length > 4000) {
-    throw new Error('Unsupported LayerPaint project format.')
+  if (!isRecord(value) || !projectFormats.has(value.format as string) || value.version !== 1 || !Array.isArray(value.assets) || value.assets.length > 4000) {
+    throw new Error('Unsupported artboard.ing project format.')
   }
   const document = parseProjectDocument(value.document); const editor = parseEditor(value.editor)
   const ids = collectDocumentAssetIds([document])

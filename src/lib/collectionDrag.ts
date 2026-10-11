@@ -3,9 +3,9 @@ import type {Ingredient} from './state.ts'
 import {projectStore} from './state.ts'
 
 /** private drag type for collection images, carrying the ingredient ID; only these can be placed on the canvas */
-export const ingredientMediaType = 'application/x-layerpaint-ingredient'
+export const ingredientMediaType = 'application/x-artboarding-ingredient'
 /** private drag type for every collection tile, including the live frame view, carrying its prompt reference */
-export const referenceMediaType = 'application/x-layerpaint-reference'
+export const referenceMediaType = 'application/x-artboarding-reference'
 
 export const getReferenceText = (ingredient: Pick<Ingredient, 'index'>) => `![${ingredient.index}]`
 

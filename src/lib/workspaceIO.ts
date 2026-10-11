@@ -10,7 +10,7 @@ import {getExportPlan} from './exporting.ts'
 import {encodeCanvas} from './image.ts'
 import {defaultImportedMask, editorStore, projectStore} from './state.ts'
 
-export {openPortableProject, savePortableProject, serializeProject} from './portableProject.ts'
+export {openPortableProject, projectFileExtensions, savePortableProject, serializeProject} from './portableProject.ts'
 
 export async function newProject() {
   resetProject()

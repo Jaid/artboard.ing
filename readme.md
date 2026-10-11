@@ -1,4 +1,4 @@
-# LayerPaint
+# artboard.ing
 
 A non-destructive image studio for building illustrations through local edits, references, inpainting, outpainting and global restyling. The prompt editor is Monacozen; the workspace is an infinite canvas with independently editable layers.
 
@@ -38,7 +38,7 @@ For a static deployment, the key popover accepts a browser-session key. This key
 3. Move the generation frame to the region you want to edit. Corner handles preserve its ratio. Edge handles snap between ratios advertised by the selected model. Handles appear when the pointer touches the frame. While the canvas has no layers, the frame can be neither moved nor scaled; dragging inside it pans the view instead.
 4. Write a prompt and press the yellow button, or press **Ctrl+Enter**. A generation captures its input images, prompt, model settings and frame before the request is sent. Moving the frame while it runs cannot change where the result lands.
 5. New layers start with a 100% area and no feather, and they are not selected automatically. Click the mask thumbnail next to a layer’s image thumbnail to enter mask edit mode, which hides the generation frame and provides **Area**, **Feather**, roundness and mask translation. Selecting the image thumbnail shows only image-related controls: **Opacity**, **Brightness**, **Contrast**, **Gamma**, **Saturation**, **Vibrance** and **White balance** sliders (double-click one to reset it) and, for generations, **Content-aware alignment**. Dragging inside the selected layer repositions its mask; clicking the mask thumbnail again or pressing Escape leaves the mode.
-6. Continue with further local edits, then right-click the frame view (tile 0 of the collection) and choose **Export…** for PNG, JPG, WebP or a PNG clipboard copy. Use **Save project** for an editable `.layerpaint` backup containing the source assets and request captures.
+6. Continue with further local edits, then right-click the frame view (tile 0 of the collection) and choose **Export…** for PNG, JPG, WebP or a PNG clipboard copy. Use **Save project** for an editable `.artboarding` backup containing the source assets and request captures.
 
 ### The generate button and the frame toggle
 

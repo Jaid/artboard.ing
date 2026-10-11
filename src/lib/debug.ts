@@ -38,8 +38,8 @@ export const debugHandle = {
   },
 }
 declare global {
-  var layerPaint: typeof debugHandle | undefined
+  var artboarding: typeof debugHandle | undefined
 }
 export const installDebugHandle = () => {
-  globalThis.layerPaint = debugHandle
+  globalThis.artboarding = debugHandle
 }

@@ -100,7 +100,7 @@ export async function renderExport(scope: ExportScope, format: ExportFormat, qua
   })
   return encodeCanvas(canvas, format, quality)
 }
-export const createFileName = (extension: string) => `layerpaint_${(new Date).toISOString().slice(0, 19).replaceAll(':', '-').replace('T', '_')}.${extension}`
+export const createFileName = (extension: string) => `artboarding_${(new Date).toISOString().slice(0, 19).replaceAll(':', '-').replace('T', '_')}.${extension}`
 export function downloadBlob(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
   anchor.href = url; anchor.download = fileName; anchor.click()
@@ -157,7 +157,7 @@ export const sanitizeFileName = (name: string) => {
   const cleaned = name.replaceAll(/[\u{0}-\u{1F}"*/:<>?\\|]+/gu, ' ').replaceAll(/\s+/g, ' ').trim().replace(/^\.+/, '').slice(0, 100).trim()
   return cleaned || undefined
 }
-export const getIngredientFileName = (ingredient: Pick<Ingredient, 'index' | 'name'>, mediaType: string) => `${sanitizeFileName(ingredient.name) ?? `layerpaint_${ingredient.index}`}.${getExtension(mediaType)}`
+export const getIngredientFileName = (ingredient: Pick<Ingredient, 'index' | 'name'>, mediaType: string) => `${sanitizeFileName(ingredient.name) ?? `artboarding_${ingredient.index}`}.${getExtension(mediaType)}`
 /** Saves the original bytes of a collection image, so nothing is re-encoded. */
 export function exportIngredient(ingredient: Ingredient) {
   try {

@@ -58,7 +58,7 @@ export function createApi(options: ApiOptions = {}) {
     }
     if (url.pathname !== '/api/generate') return fail(404, 'Unknown API route.')
     if (request.method !== 'POST') return fail(405, 'Use POST for generation.')
-    if (!matchesToken(token, request.headers.get('x-layerpaint-token') ?? '')) return fail(403, 'Refresh the application to establish a local session.')
+    if (!matchesToken(token, request.headers.get('x-artboarding-token') ?? '')) return fail(403, 'Refresh the application to establish a local session.')
     if (!options.key) return fail(503, 'No server-side API key is configured. Set OPENROUTER_API_KEY in .env or enter a browser-session key.')
     if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return fail(415, 'Use an application/json request body.')
     if (active >= 2) return fail(429, 'Two generation requests are already running.')
@@ -76,7 +76,7 @@ export function createApi(options: ApiOptions = {}) {
       }
       const response = await fetcher(`${base}/images`, {
         method: 'POST', redirect: 'error', signal,
-        headers: {'Content-Type': 'application/json', Authorization: `Bearer ${options.key}`, 'X-OpenRouter-Title': 'LayerPaint'},
+        headers: {'Content-Type': 'application/json', Authorization: `Bearer ${options.key}`, 'X-OpenRouter-Title': 'artboard.ing'},
         body: JSON.stringify(payload),
       })
       if (!response.ok) {

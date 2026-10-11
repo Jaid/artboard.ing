@@ -265,7 +265,7 @@ async function runGeneration(task: GenerationTask) {
         redirect: 'error',
         headers: {
           'Content-Type': 'application/json',
-          ...useGateway ? {'X-LayerPaint-Token': apiKeyStore.state.csrfToken} : {Authorization: `Bearer ${key}`},
+          ...useGateway ? {'X-Artboarding-Token': apiKeyStore.state.csrfToken} : {Authorization: `Bearer ${key}`},
         },
         body: JSON.stringify(request),
       })

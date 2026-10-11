@@ -3,7 +3,7 @@ import {Store} from './store/index.ts'
 export type Theme = 'dark' | 'light' | 'system'
 const read = (): Theme => {
   try {
-    const saved = localStorage.getItem('layerpaint:theme'); return saved === 'light' || saved === 'system' ? saved : 'dark'
+    const saved = localStorage.getItem('artboarding:theme') ?? localStorage.getItem('layerpaint:theme'); return saved === 'light' || saved === 'system' ? saved : 'dark'
   } catch {
     return 'dark'
   }
@@ -23,7 +23,7 @@ export function applyTheme(theme: Theme) {
     dark,
   })
   try {
-    localStorage.setItem('layerpaint:theme', theme)
+    localStorage.setItem('artboarding:theme', theme)
   } catch {}
 }
 export function initializeTheme() {

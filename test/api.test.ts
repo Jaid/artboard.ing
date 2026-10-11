@@ -30,7 +30,7 @@ const request = (options: {
   headers: {
     'Content-Type': 'application/json',
     Origin: options.origin ?? origin,
-    'X-LayerPaint-Token': options.token ?? token,
+    'X-Artboarding-Token': options.token ?? token,
     ...options.headers,
   },
   body: JSON.stringify(options.body ?? body),

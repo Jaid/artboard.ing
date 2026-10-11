@@ -49,7 +49,7 @@ async function wire(target: Page) {
   })
 }
 async function ready(target: Page) {
-  await target.waitForFunction(() => Boolean(globalThis.layerPaint?.persistenceStore.state.hydrated), {timeout: 30000})
+  await target.waitForFunction(() => Boolean(globalThis.artboarding?.persistenceStore.state.hydrated), {timeout: 30000})
   await target.waitForSelector('.monaco-editor textarea', {timeout: 30000})
 }
 async function button(label: string, target = page) {
@@ -92,16 +92,16 @@ try {
 
   await check('An empty canvas keeps the frame in place and unscalable and pans instead', async () => {
     await settle()
-    const before = await page.evaluate(() => ({frame: {...globalThis.layerPaint!.editorStore.state.frame}, view: {...globalThis.layerPaint!.editorStore.state.view}, layers: globalThis.layerPaint!.projectStore.state.layers.length}))
+    const before = await page.evaluate(() => ({frame: {...globalThis.artboarding!.editorStore.state.frame}, view: {...globalThis.artboarding!.editorStore.state.view}, layers: globalThis.artboarding!.projectStore.state.layers.length}))
     assert.equal(before.layers, 0)
     const bounds = (await (await page.$('[data-testid="frame"]'))!.boundingBox())!
     await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
     await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 60, bounds.y + bounds.height / 2 + 40, {steps: 8}); await page.mouse.up()
     await page.keyboard.press('ArrowRight')
-    const after = await page.evaluate(() => ({frame: {...globalThis.layerPaint!.editorStore.state.frame}, view: {...globalThis.layerPaint!.editorStore.state.view}}))
+    const after = await page.evaluate(() => ({frame: {...globalThis.artboarding!.editorStore.state.frame}, view: {...globalThis.artboarding!.editorStore.state.view}}))
     assert.deepEqual(after.frame, before.frame)
     assert.ok(Math.abs(after.view.x - before.view.x - 60) < 1 && Math.abs(after.view.y - before.view.y - 40) < 1, 'Dragging inside the empty frame should pan the view.')
-    await page.evaluate(view => globalThis.layerPaint!.editorStore.set({view}), before.view)
+    await page.evaluate(view => globalThis.artboarding!.editorStore.set({view}), before.view)
     await settle()
     // Touching the frame edge reveals no handles, and dragging its corner or edge does not scale it.
     await page.mouse.move(bounds.x + bounds.width, bounds.y + bounds.height / 2)
@@ -110,21 +110,21 @@ try {
     for (const [x, y] of [[bounds.x + bounds.width, bounds.y + bounds.height], [bounds.x + bounds.width, bounds.y + bounds.height / 2]]) {
       await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 70, y + 50, {steps: 8}); await page.mouse.up()
     }
-    const scaled = await page.evaluate(() => ({frame: {...globalThis.layerPaint!.editorStore.state.frame}, ratio: globalThis.layerPaint!.editorStore.state.ratio}))
+    const scaled = await page.evaluate(() => ({frame: {...globalThis.artboarding!.editorStore.state.frame}, ratio: globalThis.artboarding!.editorStore.state.ratio}))
     assert.deepEqual(scaled.frame, before.frame); assert.equal(scaled.ratio, '1:1')
-    await page.evaluate(view => globalThis.layerPaint!.editorStore.set({view}), before.view)
+    await page.evaluate(view => globalThis.artboarding!.editorStore.set({view}), before.view)
     await settle()
   })
 
   await check('PNG imports, SVG reference conversion and actual JXL worker decoding', async () => {
     await pickViaMenu('Import images to canvas…', 'test/fixtures/blue.png')
-    await page.waitForFunction(() => globalThis.layerPaint?.projectStore.state.layers.length === 1)
+    await page.waitForFunction(() => globalThis.artboarding?.projectStore.state.layers.length === 1)
     await pickViaMenu('Add images to collection…', 'test/fixtures/red.png', 'test/fixtures/logo.svg')
-    await page.waitForFunction(() => globalThis.layerPaint?.projectStore.state.ingredients.length === 3)
+    await page.waitForFunction(() => globalThis.artboarding?.projectStore.state.ingredients.length === 3)
     await pickViaMenu('Import images to canvas…', 'test/fixtures/red.jxl')
-    await page.waitForFunction(() => globalThis.layerPaint?.projectStore.state.layers.length === 2)
+    await page.waitForFunction(() => globalThis.artboarding?.projectStore.state.layers.length === 2)
     const formats = await page.evaluate(() => {
-      const h = globalThis.layerPaint!, doc = h.projectStore.state
+      const h = globalThis.artboarding!, doc = h.projectStore.state
       return {jxl: h.assets.require(doc.layers[1].assetId).blob.type, svg: h.assets.require(doc.ingredients[2].assetId).blob.type, ids: doc.ingredients.map(item => item.index), kinds: doc.ingredients.map(item => item.kind)}
     })
     // Canvas imports are numbered right away, not only once they are referenced.
@@ -139,14 +139,14 @@ try {
     await page.mouse.click(bounds.x + 50, bounds.y + 22)
     await chord('a')
     await page.keyboard.type(prompt, {delay: 0})
-    await page.waitForFunction(text => globalThis.layerPaint?.editorStore.state.prompt === text, {}, prompt)
-    const preview = await page.evaluate(async () => {const result = await globalThis.layerPaint!.previewRequest(); return {sources: result.sources, errors: result.errors}})
+    await page.waitForFunction(text => globalThis.artboarding?.editorStore.state.prompt === text, {}, prompt)
+    const preview = await page.evaluate(async () => {const result = await globalThis.artboarding!.previewRequest(); return {sources: result.sources, errors: result.errors}})
     assert.deepEqual(preview.errors, []); assert.deepEqual(preview.sources, [{kind: 'canvas'}, {kind: 'ingredient', index: 2}])
   })
 
   await check('Described references put the description directly before the image', async () => {
     const preview = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!, previous = h.editorStore.state.prompt
+      const h = globalThis.artboarding!, previous = h.editorStore.state.prompt
       h.editorStore.set({prompt: 'Please add ![3](this witch) to the image'})
       const result = await h.previewRequest()
       h.editorStore.set({prompt: previous})
@@ -154,7 +154,7 @@ try {
     })
     assert.deepEqual(preview.errors, []); assert.deepEqual(preview.sources, [{kind: 'canvas'}, {kind: 'ingredient', index: 3}])
     assert.ok(preview.text.includes('Please add this witch [Image 2] to the image'), preview.text)
-    await page.waitForFunction(text => globalThis.layerPaint?.editorStore.state.prompt === text, {}, prompt)
+    await page.waitForFunction(text => globalThis.artboarding?.editorStore.state.prompt === text, {}, prompt)
   })
 
   await check('Collection thumbnails drag into the prompt and onto the canvas', async () => {
@@ -170,20 +170,20 @@ try {
       tile.dispatchEvent(new DragEvent('dragend', {bubbles: true, dataTransfer}))
       return {accepted, types: [...dataTransfer.types]}
     }, selector, point.toString())
-    const before = await page.evaluate(() => globalThis.layerPaint!.editorStore.state.prompt)
+    const before = await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt)
     const intoEditor = await dragTo('.monaco-editor .view-lines', rect => ({x: rect.left + 4, y: rect.top + 8}))
-    assert.equal(intoEditor.accepted, true); assert.ok(intoEditor.types.includes('application/x-layerpaint-ingredient'))
-    await page.waitForFunction(previous => globalThis.layerPaint!.editorStore.state.prompt !== previous, {}, before)
-    const after = await page.evaluate(() => globalThis.layerPaint!.editorStore.state.prompt)
+    assert.equal(intoEditor.accepted, true); assert.ok(intoEditor.types.includes('application/x-artboarding-ingredient'))
+    await page.waitForFunction(previous => globalThis.artboarding!.editorStore.state.prompt !== previous, {}, before)
+    const after = await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt)
     assert.ok(after.startsWith('![2]'), after)
-    await page.evaluate(text => globalThis.layerPaint!.editorStore.set({prompt: text}), before)
-    const layers = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length)
+    await page.evaluate(text => globalThis.artboarding!.editorStore.set({prompt: text}), before)
+    const layers = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length)
     const onCanvas = await dragTo('[data-viewport]', rect => ({x: rect.left + rect.width * 0.3, y: rect.top + rect.height * 0.3}))
     assert.equal(onCanvas.accepted, true)
-    const placed = await page.evaluate(() => {const h = globalThis.layerPaint!, doc = h.projectStore.state, layer = doc.layers.at(-1)!; return {count: doc.layers.length, assetId: layer.assetId, ingredientAssetId: doc.ingredients.find(item => item.index === 2)!.assetId, ingredients: doc.ingredients.length}})
+    const placed = await page.evaluate(() => {const h = globalThis.artboarding!, doc = h.projectStore.state, layer = doc.layers.at(-1)!; return {count: doc.layers.length, assetId: layer.assetId, ingredientAssetId: doc.ingredients.find(item => item.index === 2)!.assetId, ingredients: doc.ingredients.length}})
     assert.equal(placed.count, layers + 1); assert.equal(placed.assetId, placed.ingredientAssetId); assert.equal(placed.ingredients, 4, 'Placing a collection image must not create a duplicate number')
-    await page.evaluate(() => globalThis.layerPaint!.actions.undo())
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length), layers)
+    await page.evaluate(() => globalThis.artboarding!.actions.undo())
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), layers)
   })
 
   await check('The frame view at position 0 follows the frame live; collection items export from their context menu', async () => {
@@ -194,20 +194,20 @@ try {
     })
     const first = await page.$eval('[data-testid="ingredients"] [data-index]', node => (node as HTMLElement).dataset.index)
     assert.equal(first, '0', 'The frame view must be the first collection tile')
-    const frame = await page.evaluate(() => ({...globalThis.layerPaint!.editorStore.state.frame}))
-    await page.evaluate(() => globalThis.layerPaint!.actions.fitFrameToContent()); await settle(); await settle()
+    const frame = await page.evaluate(() => ({...globalThis.artboarding!.editorStore.state.frame}))
+    await page.evaluate(() => globalThis.artboarding!.actions.fitFrameToContent()); await settle(); await settle()
     const before = await sample()
     assert.ok(before.width > 0 && before.height > 0 && before.sum > 0, 'The frame view shows the artwork inside the frame')
     // Moving the frame half its width changes the view without any further interaction.
-    await page.evaluate(() => {const {frame} = globalThis.layerPaint!.editorStore.state; globalThis.layerPaint!.editorStore.set({frame: {...frame, x: frame.x + frame.width / 2}})}); await settle(); await settle()
+    await page.evaluate(() => {const {frame} = globalThis.artboarding!.editorStore.state; globalThis.artboarding!.editorStore.set({frame: {...frame, x: frame.x + frame.width / 2}})}); await settle(); await settle()
     const moved = await sample()
     assert.notEqual(moved.sum, before.sum, 'The frame view must update while the frame moves')
     // Hiding a layer updates it as well.
-    const firstLayer = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers[0].id)
-    await page.evaluate(id => globalThis.layerPaint!.actions.updateLayer(id, {visible: false}), firstLayer); await settle(); await settle()
+    const firstLayer = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers[0].id)
+    await page.evaluate(id => globalThis.artboarding!.actions.updateLayer(id, {visible: false}), firstLayer); await settle(); await settle()
     assert.notEqual((await sample()).sum, moved.sum, 'The frame view must update when the artwork changes')
-    await page.evaluate(() => globalThis.layerPaint!.actions.undo())
-    await page.evaluate(value => globalThis.layerPaint!.editorStore.set({frame: value}), frame); await settle()
+    await page.evaluate(() => globalThis.artboarding!.actions.undo())
+    await page.evaluate(value => globalThis.artboarding!.editorStore.set({frame: value}), frame); await settle()
     // Collection images download their original bytes.
     await page.evaluate(() => {
       const downloads: Array<{name: string; href: string}> = [], click = HTMLAnchorElement.prototype.click
@@ -220,7 +220,7 @@ try {
     await button('Export')
     const download = await page.waitForFunction(() => (globalThis as unknown as {downloads: Array<{name: string; href: string}>}).downloads[0]).then(handle => handle.jsonValue() as Promise<{name: string; href: string}>)
     const exported = await page.evaluate(async href => {
-      const h = globalThis.layerPaint!, blob = await (await fetch(href)).blob(), original = h.assets.require(h.projectStore.state.ingredients.find(item => item.index === 1)!.assetId).blob
+      const h = globalThis.artboarding!, blob = await (await fetch(href)).blob(), original = h.assets.require(h.projectStore.state.ingredients.find(item => item.index === 1)!.assetId).blob
       const [a, b] = [await blob.bytes(), await original.bytes()]
       return {same: a.length === b.length && a.every((byte, i) => byte === b[i]), type: blob.type, originalType: original.type}
     }, download.href)
@@ -243,7 +243,7 @@ try {
   await check('Right-clicking a layer row opens its context menu; there is no actions button', async () => {
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].filter(button => button.textContent?.trim() === 'Frame it').length), 0)
     assert.equal(await page.$('[aria-label^="Actions for"]'), null)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.editorStore.state.selectedLayerId), null, 'New layers are not auto-selected')
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.selectedLayerId), null, 'New layers are not auto-selected')
     await page.click('[title="Select red"]', {button: 'right'})
     await page.waitForSelector('[role="menu"]')
     await button('Frame it')
@@ -251,60 +251,60 @@ try {
   })
 
   await check('Frame edge drag snaps aspect ratios without moving the opposite edge', async () => {
-    await page.evaluate(() => globalThis.layerPaint!.actions.fitViewToFrame())
+    await page.evaluate(() => globalThis.artboarding!.actions.fitViewToFrame())
     await settle()
-    const before = await page.evaluate(() => ({...globalThis.layerPaint!.editorStore.state.frame}))
+    const before = await page.evaluate(() => ({...globalThis.artboarding!.editorStore.state.frame}))
     const bounds = (await (await page.$('[data-testid="frame"]'))!.boundingBox())!
     await page.mouse.move(bounds.x + bounds.width, bounds.y + bounds.height / 2)
     await new Promise(resolve => setTimeout(resolve, 150))
     const edge = (await (await page.$('[data-edge="e"]'))!.boundingBox())!
     await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2)
     await page.mouse.down(); await page.mouse.move(edge.x + edge.width / 2 + bounds.width * 0.5, edge.y + edge.height / 2, {steps: 12}); await page.mouse.up()
-    const after = await page.evaluate(() => ({frame: {...globalThis.layerPaint!.editorStore.state.frame}, ratio: globalThis.layerPaint!.editorStore.state.ratio}))
+    const after = await page.evaluate(() => ({frame: {...globalThis.artboarding!.editorStore.state.frame}, ratio: globalThis.artboarding!.editorStore.state.ratio}))
     assert.equal(after.frame.x, before.x); assert.equal(after.frame.height, before.height); assert.notEqual(after.ratio, '1:1')
     const [w, h] = after.ratio.split(':').map(Number); assert.ok(Math.abs(after.frame.width / after.frame.height - w / h) < 1e-8)
   })
 
   await check('Imported layers resize and rotate; one drag is one undo step', async () => {
     await page.click('[title="Select red"]'); await button('Move, resize & rotate'); await settle()
-    const before = await page.evaluate(() => ({...globalThis.layerPaint!.projectStore.state.layers[1].rect}))
+    const before = await page.evaluate(() => ({...globalThis.artboarding!.projectStore.state.layers[1].rect}))
     const corner = (await (await page.$('[data-layer-corner="se"]'))!.boundingBox())!
     await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2); await page.mouse.down(); await page.mouse.move(corner.x + 45, corner.y + 45, {steps: 8}); await page.mouse.up()
-    const resized = await page.evaluate(() => ({...globalThis.layerPaint!.projectStore.state.layers[1].rect}))
+    const resized = await page.evaluate(() => ({...globalThis.artboarding!.projectStore.state.layers[1].rect}))
     assert.ok(resized.width > before.width); assert.ok(Math.abs(resized.width / resized.height - before.width / before.height) < 1e-8)
     await settle()
     const rotate = (await (await page.$('[data-layer-rotate]'))!.boundingBox())!
     await page.mouse.move(rotate.x + rotate.width / 2, rotate.y + rotate.height / 2); await page.mouse.down(); await page.mouse.move(rotate.x + 65, rotate.y + 35, {steps: 10}); await page.mouse.up()
-    const rotated = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers[1].rotation ?? 0)
+    const rotated = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers[1].rotation ?? 0)
     assert.ok(Math.abs(rotated) > 1)
     await chord('z')
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers[1].rotation ?? 0), 0)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers[1].rotation ?? 0), 0)
     await chord('z', true)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers[1].rotation ?? 0), rotated)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers[1].rotation ?? 0), rotated)
   })
 
   await check('One Ctrl+Enter produces one Image API call and a locked generated layer', async () => {
-    await page.evaluate(() => {const h = globalThis.layerPaint!; h.actions.fitFrameToContent(); h.editorStore.set({tool: 'frame'}); h.actions.fitViewToFrame()})
+    await page.evaluate(() => {const h = globalThis.artboarding!; h.actions.fitFrameToContent(); h.editorStore.set({tool: 'frame'}); h.actions.fitViewToFrame()})
     const editor = (await (await page.$('.monaco-editor'))!.boundingBox())!
     await page.mouse.click(editor.x + 55, editor.y + 22)
     const count = requests.length
     await chord('Enter')
-    await page.waitForFunction(() => globalThis.layerPaint?.projectStore.state.layers.length === 3)
+    await page.waitForFunction(() => globalThis.artboarding?.projectStore.state.layers.length === 3)
     assert.equal(requests.length, count + 1)
     assert.equal(requests.at(-1)!.input_references.length, 2)
     assert.equal(requests.at(-1)!.model, 'google/gemini-nano-banana-2.1', 'Nano Banana 2.1 is the default model')
-    const state = await page.evaluate(() => {const h = globalThis.layerPaint!, layer = h.projectStore.state.layers.at(-1)!; const rect = {...layer.rect}; h.actions.updateLayer(layer.id, {rect: {...rect, x: rect.x + 100}, rotation: 90}); return {rect, after: h.projectStore.state.layers.at(-1)!.rect, rotation: h.projectStore.state.layers.at(-1)!.rotation ?? 0, evidence: Boolean(layer.evidence?.canvasAssetId), cost: h.editorStore.state.sessionCost}})
+    const state = await page.evaluate(() => {const h = globalThis.artboarding!, layer = h.projectStore.state.layers.at(-1)!; const rect = {...layer.rect}; h.actions.updateLayer(layer.id, {rect: {...rect, x: rect.x + 100}, rotation: 90}); return {rect, after: h.projectStore.state.layers.at(-1)!.rect, rotation: h.projectStore.state.layers.at(-1)!.rotation ?? 0, evidence: Boolean(layer.evidence?.canvasAssetId), cost: h.editorStore.state.sessionCost}})
     assert.deepEqual(state.after, state.rect); assert.equal(state.rotation, 0); assert.equal(state.evidence, true); assert.equal(state.cost, 0.025)
   })
 
   await check('The generate button names the operation and the frame can be switched off', async () => {
-    await page.evaluate(() => {const h = globalThis.layerPaint!; h.actions.fitFrameToContent(); h.editorStore.set({tool: 'frame'})})
-    const area = await page.evaluate(() => {const h = globalThis.layerPaint!, base = h.projectStore.state.layers[0]; return {...base.rect}})
+    await page.evaluate(() => {const h = globalThis.artboarding!; h.actions.fitFrameToContent(); h.editorStore.set({tool: 'frame'})})
+    const area = await page.evaluate(() => {const h = globalThis.artboarding!, base = h.projectStore.state.layers[0]; return {...base.rect}})
     const label = async (frame: {x: number; y: number; width: number; height: number}, expected: string) => {
-      await page.evaluate(frame => globalThis.layerPaint!.editorStore.set({frame}), frame)
+      await page.evaluate(frame => globalThis.artboarding!.editorStore.set({frame}), frame)
       await page.waitForFunction(expected => document.querySelector('[data-testid="generate"]')?.textContent?.trim() === expected, {timeout: 3000}, expected).catch(async () => assert.fail(`Expected “${expected}”, got “${await generateLabel()}”`))
     }
-    const all = await page.evaluate(() => globalThis.layerPaint!.editorStore.state.frame)
+    const all = await page.evaluate(() => globalThis.artboarding!.editorStore.state.frame)
     // The button reserves the width of its longest label, so the frame toggle next to it never moves.
     const toggleLeft = () => page.$eval('[data-testid="frame-toggle"]', node => node.getBoundingClientRect().left)
     const positions: number[] = []
@@ -316,7 +316,7 @@ try {
     // The frame carries no text label.
     assert.equal(await page.$eval('[data-testid="frame"]', node => node.textContent), '')
     // Frame off: generations span all artwork, padded to the closest ratio.
-    await page.evaluate(() => globalThis.layerPaint!.editorStore.set({frame: {x: -5000, y: -5000, width: 100, height: 100}}))
+    await page.evaluate(() => globalThis.artboarding!.editorStore.set({frame: {x: -5000, y: -5000, width: 100, height: 100}}))
     await page.click('[data-testid="frame-toggle"]')
     assert.equal(await page.$('[data-testid="frame"]'), null)
     await page.waitForFunction(() => document.querySelector('[data-testid="generate"]')?.textContent?.trim() === 'Transform', {timeout: 3000})
@@ -324,10 +324,10 @@ try {
     await page.waitForSelector('[data-testid="content-region"]')
     const count = requests.length
     await page.click('[data-testid="generate"]')
-    await page.waitForFunction(count => globalThis.layerPaint!.editorStore.state.jobs.length === 0 && globalThis.layerPaint!.projectStore.state.layers.length > count, {}, await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length))
+    await page.waitForFunction(count => globalThis.artboarding!.editorStore.state.jobs.length === 0 && globalThis.artboarding!.projectStore.state.layers.length > count, {}, await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length))
     assert.equal(requests.length, count + 1)
     const spanned = await page.evaluate(() => {
-      const h = globalThis.layerPaint!, layers = h.projectStore.state.layers, generated = layers.at(-1)!
+      const h = globalThis.artboarding!, layers = h.projectStore.state.layers, generated = layers.at(-1)!
       const xs = layers.slice(0, -1).filter(layer => layer.visible).map(layer => layer.rect)
       const left = Math.min(...xs.map(rect => rect.x)), top = Math.min(...xs.map(rect => rect.y)), right = Math.max(...xs.map(rect => rect.x + rect.width)), bottom = Math.max(...xs.map(rect => rect.y + rect.height))
       const rect = generated.rect
@@ -339,55 +339,55 @@ try {
     await page.mouse.move(5, 5)
     await page.click('[data-testid="frame-toggle"]')
     await page.waitForSelector('[data-testid="frame"]')
-    await page.evaluate(() => {const h = globalThis.layerPaint!; h.actions.fitFrameToContent(); h.actions.fitViewToFrame()})
+    await page.evaluate(() => {const h = globalThis.artboarding!; h.actions.fitFrameToContent(); h.actions.fitViewToFrame()})
   })
 
   await check('In-flight edits cannot mutate captured inputs, prompt or result placement', async () => {
-    const frame = await page.evaluate(() => ({...globalThis.layerPaint!.editorStore.state.frame}))
-    const layerCount = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length)
-    await page.evaluate(() => globalThis.layerPaint!.editorStore.set({prompt: 'A localized detail repair'}))
+    const frame = await page.evaluate(() => ({...globalThis.artboarding!.editorStore.state.frame}))
+    const layerCount = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length)
+    await page.evaluate(() => globalThis.artboarding!.editorStore.set({prompt: 'A localized detail repair'}))
     defer = true
     await page.click('[data-testid="generate"]')
     for (let i = 0; i < 200 && pending.length < 1; i++) await Bun.sleep(10)
     assert.equal(pending.length, 1)
-    await page.evaluate(() => {const h = globalThis.layerPaint!; h.editorStore.set({prompt: 'A different future request', frame: {...h.editorStore.state.frame, x: 999}})})
+    await page.evaluate(() => {const h = globalThis.artboarding!; h.editorStore.set({prompt: 'A different future request', frame: {...h.editorStore.state.frame, x: 999}})})
     await release()
-    await page.waitForFunction(count => globalThis.layerPaint?.projectStore.state.layers.length === count + 1, {}, layerCount)
-    const evidence = await page.evaluate(() => {const layer = globalThis.layerPaint!.projectStore.state.layers.at(-1)!; return {rect: layer.rect, frame: layer.evidence!.frame, prompt: layer.evidence!.prompt, canvas: layer.evidence!.canvasAssetId, output: layer.evidence!.outputAssetId}})
+    await page.waitForFunction(count => globalThis.artboarding?.projectStore.state.layers.length === count + 1, {}, layerCount)
+    const evidence = await page.evaluate(() => {const layer = globalThis.artboarding!.projectStore.state.layers.at(-1)!; return {rect: layer.rect, frame: layer.evidence!.frame, prompt: layer.evidence!.prompt, canvas: layer.evidence!.canvasAssetId, output: layer.evidence!.outputAssetId}})
     assert.deepEqual(evidence.rect, frame); assert.deepEqual(evidence.frame, frame); assert.equal(evidence.prompt, 'A localized detail repair'); assert.ok(evidence.canvas && evidence.canvas !== evidence.output)
   })
 
   await check('Reroll resends the captured inputs with the current model and adds a revision', async () => {
-    const original = await page.evaluate(() => {const layer = globalThis.layerPaint!.projectStore.state.layers.at(-1)!; return {id: layer.id, assetId: layer.assetId, compiled: layer.evidence!.compiledPrompt, count: globalThis.layerPaint!.projectStore.state.layers.length}})
+    const original = await page.evaluate(() => {const layer = globalThis.artboarding!.projectStore.state.layers.at(-1)!; return {id: layer.id, assetId: layer.assetId, compiled: layer.evidence!.compiledPrompt, count: globalThis.artboarding!.projectStore.state.layers.length}})
     const firstRequest = requests.at(-1)!
     await page.select('[data-testid="model-select"]', 'x-ai/grok-imagine-image-2.0')
     // The prompt changes in the meantime, but a reroll repeats the captured request.
-    await page.evaluate(() => globalThis.layerPaint!.editorStore.set({prompt: 'Something else entirely'}))
+    await page.evaluate(() => globalThis.artboarding!.editorStore.set({prompt: 'Something else entirely'}))
     const count = requests.length
     await page.click('[title="Select A localized detail repair"]', {button: 'right'})
     await page.waitForSelector('[role="menu"]')
     await button('Reroll')
-    await page.waitForFunction(id => (globalThis.layerPaint!.projectStore.state.layers.find(layer => layer.id === id)?.revisions?.length ?? 0) === 2, {}, original.id)
+    await page.waitForFunction(id => (globalThis.artboarding!.projectStore.state.layers.find(layer => layer.id === id)?.revisions?.length ?? 0) === 2, {}, original.id)
     assert.equal(requests.length, count + 1)
     const rerolled = requests.at(-1)!
     assert.equal(rerolled.model, 'x-ai/grok-imagine-image-2.0')
     assert.equal(rerolled.prompt, original.compiled)
     assert.deepEqual(rerolled.input_references.map(item => item.image_url.url), firstRequest.input_references.map(item => item.image_url.url), 'A reroll sends the very same input images')
-    const state = await page.evaluate(id => {const h = globalThis.layerPaint!, layer = h.projectStore.state.layers.find(item => item.id === id)!; return {count: h.projectStore.state.layers.length, assetId: layer.assetId, model: layer.evidence!.modelId, revision: layer.revision}}, original.id)
+    const state = await page.evaluate(id => {const h = globalThis.artboarding!, layer = h.projectStore.state.layers.find(item => item.id === id)!; return {count: h.projectStore.state.layers.length, assetId: layer.assetId, model: layer.evidence!.modelId, revision: layer.revision}}, original.id)
     assert.equal(state.count, original.count, 'A reroll adds no layer'); assert.notEqual(state.assetId, original.assetId); assert.equal(state.model, 'x-ai/grok-imagine-image-2.0'); assert.equal(state.revision, 1)
     const selector = () => page.$eval('[data-testid="revision-selector"]', node => node.textContent?.replaceAll(/[◂▸]/g, ''))
     assert.equal(await selector(), '2/2')
     await page.click('[aria-label="Show the previous revision of A localized detail repair"]')
     assert.equal(await selector(), '1/2')
-    assert.equal(await page.evaluate(id => globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!.assetId, original.id), original.assetId)
+    assert.equal(await page.evaluate(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.assetId, original.id), original.assetId)
     await page.select('[data-testid="model-select"]', 'google/gemini-nano-banana-2.1')
-    await page.evaluate(() => globalThis.layerPaint!.editorStore.set({prompt: 'A localized detail repair'}))
+    await page.evaluate(() => globalThis.artboarding!.editorStore.set({prompt: 'A localized detail repair'}))
   })
 
   await check('Hovering a collection item shows a rich tooltip, unrolls cropped pictures and points out every use', async () => {
     // The revision that is not shown right now is buried in the revision selector.
-    const buried = await page.evaluate(() => {const h = globalThis.layerPaint!, layer = h.projectStore.state.layers.at(-1)!, assetId = layer.revisions!.find(item => item.assetId !== layer.assetId)!.assetId; return h.projectStore.state.ingredients.find(item => item.assetId === assetId)!.index})
-    await page.evaluate(index => globalThis.layerPaint!.editorStore.set({prompt: `Use ![${index}] here`}), buried)
+    const buried = await page.evaluate(() => {const h = globalThis.artboarding!, layer = h.projectStore.state.layers.at(-1)!, assetId = layer.revisions!.find(item => item.assetId !== layer.assetId)!.assetId; return h.projectStore.state.ingredients.find(item => item.assetId === assetId)!.index})
+    await page.evaluate(index => globalThis.artboarding!.editorStore.set({prompt: `Use ![${index}] here`}), buried)
     await page.hover(`[data-testid="ingredient"][data-index="${buried}"]`)
     await page.waitForSelector('[data-testid="revision-selector"][data-highlighted]')
     await page.waitForSelector('[data-testid="occurrence"]')
@@ -401,7 +401,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('[data-testid="occurrence"]') && !document.querySelector('[data-highlighted]'))
     // A wide picture is cropped in its tile and unrolls in place.
     const wide = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!, canvas = new OffscreenCanvas(600, 100), context = canvas.getContext('2d')!
+      const h = globalThis.artboarding!, canvas = new OffscreenCanvas(600, 100), context = canvas.getContext('2d')!
       context.fillStyle = '#3a6'; context.fillRect(0, 0, 600, 100); context.fillStyle = '#e33'; context.fillRect(0, 0, 60, 100)
       const [ingredient] = await h.actions.addIngredients([new File([await canvas.convertToBlob({type: 'image/png'})], 'wide.png', {type: 'image/png'})])
       return ingredient.index
@@ -421,45 +421,45 @@ try {
     await page.waitForSelector('[role="menu"][aria-label="Collection context menu"]')
     await button('Delete')
     await page.waitForFunction(selector => !document.querySelector(selector), {}, wideTile)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.editorStore.state.hoveredCollectionIndex), null)
-    await page.evaluate(() => globalThis.layerPaint!.editorStore.set({prompt: 'A localized detail repair'}))
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.hoveredCollectionIndex), null)
+    await page.evaluate(() => globalThis.artboarding!.editorStore.set({prompt: 'A localized detail repair'}))
   })
 
   await check('Layer opacity is an image control and renders translucently; hiding moved into the context menu', async () => {
-    const id = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.at(-1)!.id)
+    const id = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.at(-1)!.id)
     assert.equal(await page.$('[aria-label="Hide layer"]'), null, 'Visible layers have no eye button')
     await page.click('[title="Select A localized detail repair"]')
     const slider = (await page.waitForSelector('[data-testid="opacity"]'))!
     await slider.evaluate(node => {const input = node as HTMLInputElement; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '50'); input.dispatchEvent(new Event('input', {bubbles: true}))})
-    await page.waitForFunction(id => globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!.opacity === 0.5, {}, id)
+    await page.waitForFunction(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.opacity === 0.5, {}, id)
     const alpha = await page.evaluate(id => {
-      const h = globalThis.layerPaint!, layer = h.projectStore.state.layers.find(item => item.id === id)!
+      const h = globalThis.artboarding!, layer = h.projectStore.state.layers.find(item => item.id === id)!
       const {canvas} = h.renderRegion({layers: [layer], region: layer.rect, size: {width: 8, height: 8}, measureEmpty: false})
       return canvas.getContext('2d')!.getImageData(4, 4, 1, 1).data[3]
     }, id)
     assert.ok(Math.abs(alpha - 128) <= 2, `alpha ${alpha}`)
-    await page.evaluate(id => globalThis.layerPaint!.actions.updateLayer(id, {opacity: 1}), id)
+    await page.evaluate(id => globalThis.artboarding!.actions.updateLayer(id, {opacity: 1}), id)
     await page.click('[title="Select A localized detail repair"]', {button: 'right'})
     await page.waitForSelector('[role="menu"]')
     await button('Hide layer')
     await page.waitForSelector('[aria-label="Show layer"]')
     await page.click('[aria-label="Show layer"]')
-    await page.waitForFunction(id => globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!.visible, {}, id)
+    await page.waitForFunction(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.visible, {}, id)
     assert.equal(await page.$('[aria-label="Show layer"]'), null)
-    await page.evaluate(() => {globalThis.layerPaint!.actions.selectLayer(null); globalThis.layerPaint!.editorStore.set({tool: 'frame'})})
+    await page.evaluate(() => {globalThis.artboarding!.actions.selectLayer(null); globalThis.artboarding!.editorStore.set({tool: 'frame'})})
   })
 
   await check('Content-aware alignment is analyzed once and then toggles instantly', async () => {
     assert.equal(await page.$('details'), null, 'The prompt panel options menu is gone')
-    const id = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.at(-1)!.id)
+    const id = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.at(-1)!.id)
     await page.click('[title="Select A localized detail repair"]')
     const toggle = await page.waitForSelector('[data-testid="content-aware"]:not(:disabled)')
     const start = performance.now()
     await toggle!.click()
-    await page.waitForFunction(id => {const layer = globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!; return layer.contentAware === true && Boolean(layer.alignment)}, {timeout: 30000}, id)
+    await page.waitForFunction(id => {const layer = globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!; return layer.contentAware === true && Boolean(layer.alignment)}, {timeout: 30000}, id)
     console.log(`  first analysis took ${Math.round(performance.now() - start)} ms`)
     const toggles = await page.evaluate(async id => {
-      const h = globalThis.layerPaint!, results: Array<{checked: boolean; enabled: boolean | undefined; ms: number}> = []
+      const h = globalThis.artboarding!, results: Array<{checked: boolean; enabled: boolean | undefined; ms: number}> = []
       for (let index = 0; index < 4; index++) {
         const input = document.querySelector<HTMLInputElement>('[data-testid="content-aware"]')!
         const begin = performance.now(); input.click()
@@ -474,20 +474,20 @@ try {
     assert.deepEqual(toggles.map(item => item.checked), [false, true, false, true])
     assert.ok(toggles.every(item => item.ms < 100), JSON.stringify(toggles))
     await page.click('[data-testid="content-aware"]')
-    assert.equal(await page.evaluate(id => globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!.contentAware, id), false)
+    assert.equal(await page.evaluate(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.contentAware, id), false)
   })
 
   await check('Adjustment sliders edit the selected layer and render like the reference color math', async () => {
-    const id = await page.evaluate(() => globalThis.layerPaint!.editorStore.state.selectedLayerId!)
+    const id = await page.evaluate(() => globalThis.artboarding!.editorStore.state.selectedLayerId!)
     assert.deepEqual(await page.$$eval('[data-testid="adjustments"] [data-adjustment]', nodes => nodes.map(node => (node as HTMLElement).dataset.adjustment)), ['brightness', 'contrast', 'gamma', 'saturation', 'vibrance', 'temperature'])
     await page.focus('[data-adjustment="saturation"]')
     for (let index = 0; index < 10; index++) await page.keyboard.press('ArrowRight')
-    assert.deepEqual(await page.evaluate(id => globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!.adjustments, id), {saturation: 0.1})
+    assert.deepEqual(await page.evaluate(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.adjustments, id), {saturation: 0.1})
     await button('Reset adjustments')
-    assert.equal(await page.evaluate(id => globalThis.layerPaint!.projectStore.state.layers.find(item => item.id === id)!.adjustments, id), undefined)
+    assert.equal(await page.evaluate(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.adjustments, id), undefined)
     const adjustments = {brightness: 0.15, contrast: 0.3, gamma: -0.2, saturation: 0.4, vibrance: 0.5, temperature: -0.35}
     const sample = await page.evaluate(async adjustments => {
-      const h = globalThis.layerPaint!, side = 48
+      const h = globalThis.artboarding!, side = 48
       const source = new OffscreenCanvas(side, side), context = source.getContext('2d')!
       const hue = context.createLinearGradient(0, 0, side, 0)
       for (let stop = 0; stop <= 6; stop++) hue.addColorStop(stop / 6, `hsl(${stop * 60} 80% 50%)`)
@@ -522,48 +522,48 @@ try {
     console.log(`  ${sample.webgl ? 'WebGL 2' : 'CPU fallback'} · max channel deviation beyond alpha quantization ${maxDifference.toFixed(2)}`)
     assert.ok(changed > sample.source.length / 4, 'Adjustments must visibly change the pixels')
     assert.ok(maxDifference <= 2, `Rendered adjustments deviate from the reference by ${maxDifference}`)
-    await page.evaluate(() => {const h = globalThis.layerPaint!; h.actions.selectLayer(null); h.editorStore.set({hoveredLayerId: null})})
+    await page.evaluate(() => {const h = globalThis.artboarding!; h.actions.selectLayer(null); h.editorStore.set({hoveredLayerId: null})})
   })
 
   await check('The mask thumbnail enters mask mode, hides the frame and exposes contracted/feather bounds', async () => {
-    const defaults = await page.evaluate(() => {const h = globalThis.layerPaint!, layer = h.projectStore.state.layers.at(-1)!; return {area: layer.area, feather: layer.feather, selected: h.editorStore.state.selectedLayerId === layer.id}})
+    const defaults = await page.evaluate(() => {const h = globalThis.artboarding!, layer = h.projectStore.state.layers.at(-1)!; return {area: layer.area, feather: layer.feather, selected: h.editorStore.state.selectedLayerId === layer.id}})
     assert.deepEqual(defaults, {area: 1, feather: 0, selected: false}, 'Generated layers default to a 100% area, unfeathered mask and are not auto-selected')
-    assert.equal(await page.$$eval('[data-testid="mask-thumbnail"]', nodes => nodes.length), await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length - 1), 'Every non-base layer has a mask thumbnail')
+    assert.equal(await page.$$eval('[data-testid="mask-thumbnail"]', nodes => nodes.length), await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length - 1), 'Every non-base layer has a mask thumbnail')
     await page.click('[aria-label="Edit the mask of A localized detail repair"]')
-    assert.equal(await page.evaluate(() => {const h = globalThis.layerPaint!; return h.editorStore.state.tool === 'mask' && h.editorStore.state.selectedLayerId === h.projectStore.state.layers.at(-1)!.id}), true)
+    assert.equal(await page.evaluate(() => {const h = globalThis.artboarding!; return h.editorStore.state.tool === 'mask' && h.editorStore.state.selectedLayerId === h.projectStore.state.layers.at(-1)!.id}), true)
     assert.equal(await page.$('[data-testid="frame"]'), null)
     await page.evaluate(() => {
-      const h = globalThis.layerPaint!, layer = h.projectStore.state.layers.at(-1)!
+      const h = globalThis.artboarding!, layer = h.projectStore.state.layers.at(-1)!
       h.actions.updateLayer(layer.id, {area: 0.25, feather: 0.5, roundness: 0.3})
       h.editorStore.set({hoveredLayerId: layer.id})
     })
     await page.waitForSelector('[data-testid="mask-outline"]')
     assert.ok(await page.$('[data-testid="feather-outline"]'))
-    await page.evaluate(() => {const h = globalThis.layerPaint!; h.editorStore.set({frame: {...h.projectStore.state.layers.at(-1)!.rect}}); h.actions.fitViewToFrame()})
+    await page.evaluate(() => {const h = globalThis.artboarding!; h.editorStore.set({frame: {...h.projectStore.state.layers.at(-1)!.rect}}); h.actions.fitViewToFrame()})
     await settle()
     const outline = (await (await page.$('[data-testid="layer-outline"]'))!.boundingBox())!
-    const before = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.at(-1)!.offsetX ?? 0)
+    const before = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.at(-1)!.offsetX ?? 0)
     await page.mouse.move(outline.x + outline.width / 2, outline.y + outline.height / 2); await page.mouse.down(); await page.mouse.move(outline.x + outline.width / 2 + 20, outline.y + outline.height / 2 + 10, {steps: 6}); await page.mouse.up()
-    assert.notEqual(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.at(-1)!.offsetX ?? 0), before)
+    assert.notEqual(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.at(-1)!.offsetX ?? 0), before)
     await page.keyboard.press('Escape')
     await page.waitForSelector('[data-testid="frame"]')
   })
 
   await check('Canceling a running request adds no late layer', async () => {
-    const count = await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length)
+    const count = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length)
     defer = true
     await page.click('[data-testid="generate"]')
     for (let i = 0; i < 200 && pending.length < 1; i++) await Bun.sleep(10)
     await page.click('[title="Cancel generation"]')
     await release()
     await Bun.sleep(200)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length), count)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.editorStore.state.jobs.length), 0)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), count)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.jobs.length), 0)
   })
 
   await check('Pixel regression: isolated masks preserve the opaque base and exposed outer edge', async () => {
     const pixels = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!
+      const h = globalThis.artboarding!
       const make = async (color: string) => {const c = new OffscreenCanvas(100, 100); const ctx = c.getContext('2d')!; ctx.fillStyle = color; ctx.fillRect(0, 0, 100, 100); return h.assets.add(await c.convertToBlob({type: 'image/png'}))}
       const blue = await make('#0000ff'), red = await make('#ff0000')
       const base = {id: 'pixel-base', assetId: blue.id, name: 'Blue', kind: 'import' as const, createdAt: 0, visible: true, area: 1, feather: 0, rect: {x: 0, y: 0, width: 100, height: 100}}
@@ -581,9 +581,9 @@ try {
       const target = await browser.newPage()
       await wire(target)
       await target.goto(`${appOrigin}/?debug=true${method ? `&feather_method=${method}` : ''}`, {waitUntil: 'networkidle0'})
-      await target.waitForFunction(() => Boolean(globalThis.layerPaint?.persistenceStore.state.hydrated), {timeout: 30000})
+      await target.waitForFunction(() => Boolean(globalThis.artboarding?.persistenceStore.state.hydrated), {timeout: 30000})
       const result = await target.evaluate(async () => {
-        const h = globalThis.layerPaint!
+        const h = globalThis.artboarding!
         const make = async (color: string) => {const c = new OffscreenCanvas(64, 64); const ctx = c.getContext('2d')!; ctx.fillStyle = color; ctx.fillRect(0, 0, 64, 64); return h.assets.add(await c.convertToBlob({type: 'image/png'}))}
         const blue = await make('#0000ff'), red = await make('#ff0000')
         const base = {id: 'seam-base', assetId: blue.id, name: 'Blue', kind: 'import' as const, createdAt: 0, visible: true, area: 1, feather: 0, rect: {x: 0, y: 0, width: 300, height: 300}}
@@ -612,7 +612,7 @@ try {
 
   await check('Native-detail export keeps a tiny high-density patch; all raster encodings decode', async () => {
     const result = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!
+      const h = globalThis.artboarding!
       await h.newProject()
       const make = async (side: number, color: string) => {const canvas = new OffscreenCanvas(side, side); const ctx = canvas.getContext('2d')!; ctx.fillStyle = color; ctx.fillRect(0, 0, side, side); return h.assets.add(await canvas.convertToBlob({type: 'image/png'}))}
       const base = await make(128, '#0000ff'), detail = await make(512, '#ff0000')
@@ -634,21 +634,58 @@ try {
 
   await check('Portable projects remap asset identity and autosave restores the same pixels', async () => {
     const result = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!, originalId = h.projectStore.state.layers[0].assetId
+      const h = globalThis.artboarding!, originalId = h.projectStore.state.layers[0].assetId
       const serialized = await h.serializeProject()
       await h.openPortableProject(new Blob([serialized], {type: 'application/json'}))
       const newId = h.projectStore.state.layers[0].assetId
       await h.flushAutosave()
       return {different: originalId !== newId, count: h.projectStore.state.layers.length, format: JSON.parse(serialized).format}
     })
-    assert.equal(result.different, true); assert.equal(result.format, 'layerpaint'); assert.equal(result.count, 2)
+    assert.equal(result.different, true); assert.equal(result.format, 'artboarding'); assert.equal(result.count, 2)
     await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length), 2)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), 2)
+  })
+
+  await check('Workspaces, settings and project files from before the LayerPaint rename carry over', async () => {
+    const opened = await page.evaluate(async () => {
+      const h = globalThis.artboarding!, legacy = JSON.parse(await h.serializeProject())
+      await h.openPortableProject(new Blob([JSON.stringify({...legacy, format: 'layerpaint'})], {type: 'application/json'}))
+      await h.flushAutosave()
+      return h.projectStore.state.layers.length
+    })
+    assert.equal(opened, 2)
+    await page.evaluate(async () => {
+      const open = (name: string) => new Promise<IDBDatabase>((resolve, reject) => {const request = indexedDB.open(name, 1); request.onupgradeneeded = () => {request.result.createObjectStore('assets', {keyPath: 'id'}); request.result.createObjectStore('state')}; request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)})
+      const request = <T,>(value: IDBRequest<T>) => new Promise<T>((resolve, reject) => {value.onsuccess = () => resolve(value.result); value.onerror = () => reject(value.error)})
+      const current = await open('artboarding'), legacy = await open('layer-paint-definitive')
+      try {
+        const read = current.transaction(['assets', 'state']), project = await request(read.objectStore('state').get('project')), assets = await request(read.objectStore('assets').getAll())
+        project.editor.prompt = 'Recovered from LayerPaint'
+        const write = legacy.transaction(['assets', 'state'], 'readwrite')
+        for (const asset of assets) write.objectStore('assets').put(asset)
+        write.objectStore('state').put(project, 'project')
+        await new Promise<void>((resolve, reject) => {write.oncomplete = () => resolve(); write.onerror = () => reject(write.error)})
+        const clear = current.transaction(['assets', 'state'], 'readwrite')
+        clear.objectStore('assets').clear(); clear.objectStore('state').clear()
+        await new Promise<void>((resolve, reject) => {clear.oncomplete = () => resolve(); clear.onerror = () => reject(clear.error)})
+      } finally {current.close(); legacy.close()}
+      localStorage.removeItem('artboarding:theme'); localStorage.setItem('layerpaint:theme', 'light')
+    })
+    await page.reload({waitUntil: 'networkidle0'}); await ready(page)
+    const migrated = await page.evaluate(async () => ({
+      prompt: globalThis.artboarding!.editorStore.state.prompt,
+      layers: globalThis.artboarding!.projectStore.state.layers.length,
+      light: document.documentElement.hasAttribute('data-light'),
+      legacy: (await indexedDB.databases()).some(info => info.name === 'layer-paint-definitive'),
+    }))
+    assert.deepEqual(migrated, {prompt: 'Recovered from LayerPaint', layers: 2, light: true, legacy: false})
+    await page.evaluate(() => {localStorage.removeItem('layerpaint:theme'); localStorage.setItem('artboarding:theme', 'dark')})
+    await page.reload({waitUntil: 'networkidle0'}); await ready(page)
   })
 
   await check('Rotating and flipping a collection entry keeps every layer of it in sync, losslessly and undoably', async () => {
     const setup = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!
+      const h = globalThis.artboarding!
       await h.newProject()
       // Every pixel of the 6 × 4 source has its own opaque color.
       const canvas = new OffscreenCanvas(6, 4), ctx = canvas.getContext('2d')!, pixels = ctx.createImageData(6, 4)
@@ -662,7 +699,7 @@ try {
       return {sourceAssetId: ingredient.assetId, thumbnail: ingredient.thumbnail, index: ingredient.index, rects: h.projectStore.state.layers.map(item => ({...item.rect}))}
     })
     const state = () => page.evaluate(async () => {
-      const h = globalThis.layerPaint!, doc = h.projectStore.state, ingredient = doc.ingredients[0], asset = h.assets.require(ingredient.assetId)
+      const h = globalThis.artboarding!, doc = h.projectStore.state, ingredient = doc.ingredients[0], asset = h.assets.require(ingredient.assetId)
       const read = (bitmap: ImageBitmap) => {const canvas = new OffscreenCanvas(bitmap.width, bitmap.height), ctx = canvas.getContext('2d')!; ctx.drawImage(bitmap, 0, 0); return [...ctx.getImageData(0, 0, bitmap.width, bitmap.height).data]}
       const decoded = await createImageBitmap(asset.blob)
       return {
@@ -685,10 +722,10 @@ try {
     assert.deepEqual(await page.$eval('[data-testid="collection-rotation"]', node => [...(node as HTMLSelectElement).options].map(option => option.textContent)), ['0°', '90° clockwise', '90° counterclockwise', '180°'])
     assert.deepEqual(await page.$eval('[data-testid="collection-flip"]', node => [...(node as HTMLSelectElement).options].map(option => option.textContent)), ['None', 'Horizontal', 'Vertical'])
     await page.select('[data-testid="collection-rotation"]', '90')
-    await page.waitForFunction(() => globalThis.layerPaint!.projectStore.state.ingredients[0].rotation === 90)
+    await page.waitForFunction(() => globalThis.artboarding!.projectStore.state.ingredients[0].rotation === 90)
     // The menu stays open, so the flip can be set right away.
     await page.select('[data-testid="collection-flip"]', 'horizontal')
-    await page.waitForFunction(() => globalThis.layerPaint!.projectStore.state.ingredients[0].flip === 'horizontal')
+    await page.waitForFunction(() => globalThis.artboarding!.projectStore.state.ingredients[0].flip === 'horizontal')
     const turned = await state()
     assert.equal(turned.ingredient.sourceAssetId, setup.sourceAssetId)
     assert.notEqual(turned.ingredient.assetId, setup.sourceAssetId)
@@ -704,30 +741,30 @@ try {
     assert.equal(await page.$eval('[data-testid="collection-flip"]', node => (node as HTMLSelectElement).value), 'horizontal')
     await closeMenu()
     // Each choice is one undo step.
-    await page.evaluate(() => globalThis.layerPaint!.actions.undo())
-    assert.deepEqual(await page.evaluate(() => {const ingredient = globalThis.layerPaint!.projectStore.state.ingredients[0]; return [ingredient.rotation, ingredient.flip ?? 'none']}), [90, 'none'])
-    await page.evaluate(() => globalThis.layerPaint!.actions.undo())
+    await page.evaluate(() => globalThis.artboarding!.actions.undo())
+    assert.deepEqual(await page.evaluate(() => {const ingredient = globalThis.artboarding!.projectStore.state.ingredients[0]; return [ingredient.rotation, ingredient.flip ?? 'none']}), [90, 'none'])
+    await page.evaluate(() => globalThis.artboarding!.actions.undo())
     const undone = await state()
     assert.equal(undone.ingredient.assetId, setup.sourceAssetId); assert.equal(undone.ingredient.sourceAssetId, undefined)
     assert.deepEqual(undone.layers.map(item => item.rect), setup.rects)
-    await page.evaluate(() => {globalThis.layerPaint!.actions.redo(); globalThis.layerPaint!.actions.redo()})
+    await page.evaluate(() => {globalThis.artboarding!.actions.redo(); globalThis.artboarding!.actions.redo()})
     assert.equal((await state()).ingredient.assetId, turned.ingredient.assetId)
     // Choosing 0° and no flip returns the very original image.
     await openMenu()
     await page.select('[data-testid="collection-rotation"]', '0')
-    await page.waitForFunction(() => globalThis.layerPaint!.projectStore.state.ingredients[0].rotation === undefined)
+    await page.waitForFunction(() => globalThis.artboarding!.projectStore.state.ingredients[0].rotation === undefined)
     await page.select('[data-testid="collection-flip"]', 'none')
-    await page.waitForFunction(() => globalThis.layerPaint!.projectStore.state.ingredients[0].sourceAssetId === undefined)
+    await page.waitForFunction(() => globalThis.artboarding!.projectStore.state.ingredients[0].sourceAssetId === undefined)
     const restored = await state()
     assert.equal(restored.ingredient.assetId, setup.sourceAssetId)
     assert.ok(restored.layers.every(item => item.assetId === setup.sourceAssetId))
     assert.deepEqual(restored.layers.map(item => item.rect), setup.rects)
     // The orientation survives portable projects and autosave recovery.
     await page.select('[data-testid="collection-rotation"]', '270')
-    await page.waitForFunction(() => globalThis.layerPaint!.projectStore.state.ingredients[0].rotation === 270)
+    await page.waitForFunction(() => globalThis.artboarding!.projectStore.state.ingredients[0].rotation === 270)
     await closeMenu()
     const reopened = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!
+      const h = globalThis.artboarding!
       await h.openPortableProject(new Blob([await h.serializeProject()], {type: 'application/json'}))
       await h.flushAutosave()
       const ingredient = h.projectStore.state.ingredients[0]
@@ -735,35 +772,35 @@ try {
     })
     assert.deepEqual(reopened, {rotation: 270, source: true, synced: true})
     await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-    const recovered = await page.evaluate(() => {const h = globalThis.layerPaint!, ingredient = h.projectStore.state.ingredients[0]; return {rotation: ingredient.rotation, width: h.assets.require(ingredient.assetId).width, original: h.assets.require(ingredient.sourceAssetId!).width}})
+    const recovered = await page.evaluate(() => {const h = globalThis.artboarding!, ingredient = h.projectStore.state.ingredients[0]; return {rotation: ingredient.rotation, width: h.assets.require(ingredient.assetId).width, original: h.assets.require(ingredient.sourceAssetId!).width}})
     assert.deepEqual(recovered, {rotation: 270, width: 4, original: 6})
     // Back to 0° after recovery, the original pixels are shown again.
     await openMenu()
     await page.select('[data-testid="collection-rotation"]', '0')
-    await page.waitForFunction(() => globalThis.layerPaint!.projectStore.state.ingredients[0].sourceAssetId === undefined)
-    assert.equal(await page.evaluate(() => {const h = globalThis.layerPaint!; return h.assets.require(h.projectStore.state.ingredients[0].assetId).width}), 6)
+    await page.waitForFunction(() => globalThis.artboarding!.projectStore.state.ingredients[0].sourceAssetId === undefined)
+    assert.equal(await page.evaluate(() => {const h = globalThis.artboarding!; return h.assets.require(h.projectStore.state.ingredients[0].assetId).width}), 6)
     await closeMenu()
   })
 
   await check('Invalid portable imports leave the current workspace untouched', async () => {
     const result = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!, before = h.projectStore.state
-      try {await h.openPortableProject(new Blob([JSON.stringify({format: 'layerpaint', version: 1, document: {layers: [{id: 'bad'}]}, assets: []})])); return false}
+      const h = globalThis.artboarding!, before = h.projectStore.state
+      try {await h.openPortableProject(new Blob([JSON.stringify({format: 'artboarding', version: 1, document: {layers: [{id: 'bad'}]}, assets: []})])); return false}
       catch {return before === h.projectStore.state}
     })
     assert.equal(result, true)
   })
 
   await check('Demo mode, dark/light themes and responsive viewport controls', async () => {
-    await page.evaluate(async () => {const h = globalThis.layerPaint!; await h.newProject(); h.editorStore.set({demoMode: true, prompt: 'A moonlit mountain observatory above a sea of clouds'}); await h.generate(); h.actions.fitViewToFrame()})
+    await page.evaluate(async () => {const h = globalThis.artboarding!; await h.newProject(); h.editorStore.set({demoMode: true, prompt: 'A moonlit mountain observatory above a sea of clouds'}); await h.generate(); h.actions.fitViewToFrame()})
     const requestsBefore = requests.length
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers[0].evidence?.demo), true)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers[0].evidence?.demo), true)
     for (const [name, width, height, theme] of [['desktop-dark', 1600, 1000, 'dark'], ['desktop-light', 1600, 1000, 'light'], ['tablet-dark', 768, 820, 'dark'], ['tile-dark', 432, 600, 'dark'], ['mobile-dark', 390, 844, 'dark']] as const) {
       await page.setViewport({width, height})
       await page.select('select[aria-label="Color scheme"]', theme)
-      await page.evaluate(() => {const h = globalThis.layerPaint!; if (innerWidth <= 1000) h.editorStore.set({layersPanelOpen: false})})
+      await page.evaluate(() => {const h = globalThis.artboarding!; if (innerWidth <= 1000) h.editorStore.set({layersPanelOpen: false})})
       await Bun.sleep(150)
-      await page.evaluate(() => globalThis.layerPaint!.actions.fitViewToFrame())
+      await page.evaluate(() => globalThis.artboarding!.actions.fitViewToFrame())
       await settle()
       const layout = await page.evaluate(() => {const button = document.querySelector('[data-testid="generate"]')!.getBoundingClientRect(), canvas = document.querySelector('[data-viewport]')!.getBoundingClientRect(); return {buttonBottom: button.bottom, buttonRight: button.right, canvasHeight: canvas.height, scrollWidth: document.body.scrollWidth, width: innerWidth, height: innerHeight, theme: document.documentElement.hasAttribute('data-light') ? 'light' : 'dark'}})
       assert.equal(layout.theme, theme); assert.ok(layout.buttonRight <= width + 1); assert.ok(layout.buttonBottom <= height); assert.ok(layout.canvasHeight >= 150); assert.ok(layout.scrollWidth <= width + 1)
@@ -782,17 +819,17 @@ try {
     await ready(page)
     await settle()
     await button('New'); await page.waitForSelector('dialog[open]'); await button('Start new project')
-    await page.waitForFunction(() => globalThis.layerPaint?.projectStore.state.layers.length === 0)
+    await page.waitForFunction(() => globalThis.artboarding?.projectStore.state.layers.length === 0)
     await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-    const result = await page.evaluate(() => ({layers: globalThis.layerPaint!.projectStore.state.layers.length, references: globalThis.layerPaint!.projectStore.state.ingredients.length, prompt: globalThis.layerPaint!.editorStore.state.prompt}))
+    const result = await page.evaluate(() => ({layers: globalThis.artboarding!.projectStore.state.layers.length, references: globalThis.artboarding!.projectStore.state.ingredients.length, prompt: globalThis.artboarding!.editorStore.state.prompt}))
     assert.deepEqual(result, {layers: 0, references: 0, prompt: ''})
   })
 
   await check('Failed recovery cannot overwrite saved data until an explicit reset', async () => {
     await page.evaluate(async () => {
-      const h = globalThis.layerPaint!
+      const h = globalThis.artboarding!
       await h.flushAutosave()
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {const request = indexedDB.open('layer-paint-definitive', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)})
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {const request = indexedDB.open('artboarding', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)})
       try {
         await new Promise<void>((resolve, reject) => {
           const tx = db.transaction('state', 'readwrite'), store = tx.objectStore('state'), read = store.get('project')
@@ -802,19 +839,19 @@ try {
       } finally {db.close()}
     })
     await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.persistenceStore.state.paused), true)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.persistenceStore.state.paused), true)
     const preserved = await page.evaluate(async () => {
-      const h = globalThis.layerPaint!
+      const h = globalThis.artboarding!
       h.editorStore.set({prompt: 'Temporary workspace while recovery is paused'})
       await h.flushAutosave()
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {const request = indexedDB.open('layer-paint-definitive', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)})
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {const request = indexedDB.open('artboarding', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)})
       try {return await new Promise<boolean>((resolve, reject) => {const read = db.transaction('state').objectStore('state').get('project'); read.onsuccess = () => resolve(read.result.savedAt === 123456789 && read.result.document.layers[0].id === 'broken-recovery-record'); read.onerror = () => reject(read.error)})} finally {db.close()}
     })
     assert.equal(preserved, true)
     await button('New'); await page.waitForSelector('dialog[open]'); await button('Start new project')
-    await page.waitForFunction(() => globalThis.layerPaint?.persistenceStore.state.paused === false)
+    await page.waitForFunction(() => globalThis.artboarding?.persistenceStore.state.paused === false)
     await page.reload({waitUntil: 'networkidle0'}); await ready(page)
-    assert.equal(await page.evaluate(() => globalThis.layerPaint!.projectStore.state.layers.length), 0)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), 0)
   })
 
   assert.deepEqual(errors, [], 'No unexpected browser JavaScript errors are allowed.')

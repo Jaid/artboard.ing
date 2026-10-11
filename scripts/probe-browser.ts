@@ -13,7 +13,7 @@ try {
   await page.goto(server.url.origin + '/?debug=true', {waitUntil: 'networkidle0'})
   await page.waitForSelector('.monaco-editor textarea', {timeout: 30000})
   await new Promise(resolve => setTimeout(resolve, 1000))
-  console.log(JSON.stringify(await page.evaluate(() => ({url: location.href, browser: navigator.userAgent, text: document.body.innerText, frame: document.querySelector('[data-testid="frame"]')?.getBoundingClientRect().toJSON(), canvas: document.querySelector('[data-viewport]')?.getBoundingClientRect().toJSON(), panel: document.querySelector('[data-testid="layers-panel"]')?.getBoundingClientRect().toJSON(), theme: getComputedStyle(document.documentElement).color, debug: Boolean(globalThis.layerPaint)})), null, 2))
+  console.log(JSON.stringify(await page.evaluate(() => ({url: location.href, browser: navigator.userAgent, text: document.body.innerText, frame: document.querySelector('[data-testid="frame"]')?.getBoundingClientRect().toJSON(), canvas: document.querySelector('[data-viewport]')?.getBoundingClientRect().toJSON(), panel: document.querySelector('[data-testid="layers-panel"]')?.getBoundingClientRect().toJSON(), theme: getComputedStyle(document.documentElement).color, debug: Boolean(globalThis.artboarding)})), null, 2))
   console.log('ERRORS', JSON.stringify(errors))
   await page.screenshot({path: 'out/test/screenshots/initial-dark.png'})
 } finally {await browser.close(); await server.stop(true)}

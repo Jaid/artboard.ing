@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "description": "Non-destructive, multi-resolution image studio with a secure local Image API gateway",
+  "description": "web app for advanced image generation on an infinite canvas",
   "homepage": "https://artboard.ing",
   "funding": "https://github.com/sponsors/Jaid",
   "license": "MIT",

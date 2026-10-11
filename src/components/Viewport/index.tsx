@@ -7,7 +7,7 @@ import clsx from 'clsx'
 import {useEffect, useRef, useState} from 'react'
 
 import JobOverlay from '#component/JobOverlay'
-import {fitFrameToRect, selectLayer, setFrame, updateLayer} from '#src/lib/actions.ts'
+import {fitFrameToRect, isLayerTransformable, selectLayer, setFrame, updateLayer} from '#src/lib/actions.ts'
 import {getDroppedIngredient, isIngredientDrag} from '#src/lib/collectionDrag.ts'
 import {useHoveredCollectionAssetId} from '#src/lib/collectionHover.ts'
 import {findLayerAt, renderRegion} from '#src/lib/composite.ts'
@@ -199,15 +199,16 @@ export default function Viewport() {
     const target = event.target as HTMLElement; const state = editorStore.state
     const world = screenToWorld(state.view, pointOf(event))
     const selected = projectStore.state.layers.find(item => item.id === state.selectedLayerId)
+    const transformable = selected && isLayerTransformable(selected) ? selected : undefined
     const layerCorner = target.closest<HTMLElement>('[data-layer-corner]')?.dataset.layerCorner as Corner | undefined
     if (event.button === 1 || space) {
       begin(event, 'pan'); return
     }
-    if (selected?.kind === 'import' && layerCorner) {
-      begin(event, 'image-resize', selected, layerCorner); return
+    if (transformable && layerCorner) {
+      begin(event, 'image-resize', transformable, layerCorner); return
     }
-    if (selected?.kind === 'import' && target.closest('[data-layer-rotate]')) {
-      begin(event, 'image-rotate', selected); return
+    if (transformable && target.closest('[data-layer-rotate]')) {
+      begin(event, 'image-rotate', transformable); return
     }
     if (state.tool === 'mask' && selected && projectStore.state.layers[0]?.id !== selected.id && rectContains(getLayerBounds(selected), world)) {
       begin(event, 'mask-move', selected); return
@@ -226,7 +227,8 @@ export default function Viewport() {
     // With no artwork there is nothing to frame, so a press inside the frame pans instead of moving it.
     if (!frameEditable || event.ctrlKey || event.metaKey || event.altKey || !rectContains(state.frame, world)) {
       selectLayer(hit?.id ?? null)
-      if (hit?.kind === 'import' && state.tool !== 'mask') {
+      // The base layer stays in place, so dragging it pans like empty canvas.
+      if (hit && state.tool !== 'mask' && isLayerTransformable(hit)) {
         begin(event, 'image-move', hit); return
       }
       begin(event, 'pan'); return
@@ -424,7 +426,7 @@ export default function Viewport() {
     onPointerUp={end}
   >
     <canvas className={css.scene} aria-hidden data-testid='scene' ref={canvasRef} />
-    {outlined.map(layer => <LayerOutline key={layer.id} layer={layer} masked={layers[0]?.id !== layer.id} transform={layer.id === selectedLayerId && layer.kind === 'import' && tool === 'image'} view={view} />)}
+    {outlined.map(layer => <LayerOutline key={layer.id} layer={layer} masked={layers[0]?.id !== layer.id} transform={layer.id === selectedLayerId && tool === 'image' && isLayerTransformable(layer, layers)} view={view} />)}
     {jobs.map(job => <JobOverlay key={job.id} job={job} rect={toScreenRect(view, job.rect)} />)}
     {tool !== 'mask' && frameEnabled && <div className={clsx(css.frame, handles && css.handlesVisible, editor.generationHover && css.charged, dragKind?.startsWith('frame') && css.activeFrame)} data-testid='frame' style={rectStyle(frameScreen)}>
       {tool === 'frame' && !frameLocked && <>

@@ -208,6 +208,9 @@ describe('components', () => {
     expect(second.container.querySelectorAll('input[type="range"]:not([data-adjustment], [data-testid="opacity"])')).toHaveLength(0)
     expect(second.container.querySelectorAll('input[type="range"][data-adjustment]')).toHaveLength(6)
     expect(second.container.querySelector('[data-testid="content-aware"]')).toBeNull()
+    // The imported base layer cannot be moved, resized or rotated.
+    expect(second.container.textContent).not.toContain('Move, resize & rotate')
+    expect(second.container.textContent).toContain('Its placement is locked.')
     act(() => projectStore.reset({
       ingredients: [],
       layers: [],
@@ -606,5 +609,52 @@ describe('components', () => {
     expect(items).toContain('Frame all artwork')
     expect(items.some(item => /export/i.test(item ?? ''))).toBe(false)
     act(() => closeContextMenu())
+  })
+  test('the layer context menu locks the placement of the base layer', async () => {
+    const {projectStore} = await import('#src/lib/state.ts')
+    const {openContextMenu, closeContextMenu} = await import('#src/lib/contextMenu.ts')
+    const imported = (id: string) => ({
+      id,
+      assetId: `asset-${id}`,
+      name: id,
+      kind: 'import' as const,
+      createdAt: 0,
+      visible: true,
+      area: 1,
+      feather: 0,
+      rect: {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      },
+    })
+    act(() => projectStore.reset({
+      ingredients: [],
+      layers: [imported('base'), imported('top')],
+    }))
+    const menu = await renderComponent('ContextMenu')
+    const transformItem = (layerId: string) => {
+      act(() => openContextMenu(10, 10, layerId))
+      const item = [...menu.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(button => /placement is locked|Transform/.test(button.textContent ?? ''))!
+      const result = {
+        label: item.textContent,
+        disabled: item.disabled,
+      }
+      act(() => closeContextMenu())
+      return result
+    }
+    expect(transformItem('base')).toEqual({
+      label: 'Base layer placement is locked',
+      disabled: true,
+    })
+    expect(transformItem('top')).toEqual({
+      label: 'Transform imported image',
+      disabled: false,
+    })
+    act(() => projectStore.reset({
+      ingredients: [],
+      layers: [],
+    }))
   })
 })

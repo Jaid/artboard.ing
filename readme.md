@@ -91,7 +91,7 @@ Only referenced ingredients are sent. Repeated references share an attachment. M
 
 The frame and the images have separate geometry. Generated layers remain pinned to their captured frame. To reuse generated pixels as a movable object, drag the generation’s thumbnail from the collection onto the canvas to place a new imported copy.
 
-Use the **Image** tool to drag imports, resize from a corner or rotate from the round handle. The inspector also provides numerical transform fields. Shift snaps rotation to 15-degree increments; Alt resizes around the center.
+Use the **Image** tool to drag imports, resize from a corner or rotate from the round handle. The inspector also provides numerical transform fields. Shift snaps rotation to 15-degree increments; Alt resizes around the center. The base layer at the bottom of the stack anchors the canvas and cannot be moved, resized or rotated.
 
 Right-click the canvas, a layer or a row in the layer inspector for **Frame it**, **Hide layer**, ordering, deletion, framing, zoom, import, snapshot and undo/redo actions. There is no permanent floating canvas toolbar. Double-clicking a layer also frames it. Hidden layers keep a crossed-out eye button in their row to show them again quickly.
 

@@ -8,7 +8,7 @@ import {createId} from '#src/lib/createId.ts'
 
 import {normalizeAdjustments} from './adjustments/index.ts'
 import {assets} from './assets.ts'
-import {getContentBounds} from './composite.ts'
+import {getContentBounds, isBackgroundLayer} from './composite.ts'
 import {containSize, coverRect, rectCenter, rectFromCenter, sizeFromArea} from './geometry.ts'
 import {createThumbnailDataUrl, looksLikeImage, normalizeImportedImage} from './image.ts'
 import {getGenerationRegion} from './generationRegion.ts'
@@ -21,6 +21,9 @@ import {fitViewToRect, getViewportCenterWorld} from './viewport.ts'
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || name
 
 export const getLayer = (id: string | null) => (id ? projectStore.state.layers.find(layer => layer.id === id) : undefined)
+
+/** Only imported layers above the base can be moved, resized and rotated. Generated layers are pinned to the frame they were generated in, and the base layer anchors the canvas. */
+export const isLayerTransformable = (layer: Layer, layers: ReadonlyArray<Layer> = projectStore.state.layers) => layer.kind === 'import' && !isBackgroundLayer(layers, layer)
 
 // frame
 
@@ -125,8 +128,7 @@ export const updateLayer = (id: string, patch: LayerPatch, options: CommitOption
   if (!layer) {
     return
   }
-  if ((patch.rect || patch.rotation !== undefined) && layer.kind === 'generated') {
-    // Generated layers are pinned to the frame they were generated in.
+  if ((patch.rect || patch.rotation !== undefined) && !isLayerTransformable(layer)) {
     return
   }
   if (patch.rect && (!Object.values(patch.rect).every(Number.isFinite) || patch.rect.width <= 0 || patch.rect.height <= 0)) {

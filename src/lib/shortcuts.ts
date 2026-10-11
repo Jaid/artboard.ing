@@ -1,4 +1,4 @@
-import {fitViewToContent, fitViewToFrame, redo, removeLayer, selectLayer, setFrame, undo, updateLayer} from './actions.ts'
+import {fitViewToContent, fitViewToFrame, isLayerTransformable, redo, removeLayer, selectLayer, setFrame, undo, updateLayer} from './actions.ts'
 import {persistenceStore} from './autosave.ts'
 import {routeDroppedFiles} from './drop.ts'
 import {generate} from './generation.ts'
@@ -66,7 +66,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
     const step = (event.shiftKey ? 50 : 5) / state.view.scale
     const x = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0
     const y = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
-    if (state.tool === 'image' && layer?.kind === 'import') {
+    if (state.tool === 'image' && layer && isLayerTransformable(layer)) {
       updateLayer(layer.id, {rect: {
         ...layer.rect,
         x: layer.rect.x + x,

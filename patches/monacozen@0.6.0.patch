@@ -1,0 +1,27 @@
+diff --git a/assets/editorWebWorkerMain-9q7AG3J9.js b/assets/editorWebWorkerMain-9q7AG3J9.js
+index 53c5633a6a3da022f6527ab83a87c363aec49bff..21c56694d3f1fdae6b0eafda0d71a44be929ccd2 100644
+--- a/assets/editorWebWorkerMain-9q7AG3J9.js
++++ b/assets/editorWebWorkerMain-9q7AG3J9.js
+@@ -1 +1 @@
+-function e(e){return new Worker(new URL(`editorWebWorkerMain-BeKU-a3I.js`,import.meta.url).href,{name:e?.name})}export{e as default};
+\ No newline at end of file
++function e(e){return new Worker(new URL(`editorWebWorkerMain-BeKU-a3I.js`,import.meta.url).href,{name:e?.name,type:"module"})}export{e as default};
+\ No newline at end of file
+diff --git a/assets/json.worker-D4KZT3k0.js b/assets/json.worker-D4KZT3k0.js
+index f26bac449873ae889fec47147543e5f678c0ea4d..a904fc3878c769cb075b7542f66a5e731c7581ed 100644
+--- a/assets/json.worker-D4KZT3k0.js
++++ b/assets/json.worker-D4KZT3k0.js
+@@ -1 +1 @@
+-function e(e){return new Worker(new URL(`json.worker-BO5JkV3c.js`,import.meta.url).href,{name:e?.name})}export{e as default};
+\ No newline at end of file
++function e(e){return new Worker(new URL(`json.worker-BO5JkV3c.js`,import.meta.url).href,{name:e?.name,type:"module"})}export{e as default};
+\ No newline at end of file
+diff --git a/assets/yaml.worker-D0QDX0Zj.js b/assets/yaml.worker-D0QDX0Zj.js
+index 6b41fce28dd2d6b0c43587ffc212f7f068b9e17d..2b4cb05ad483e904c6910efdb491ac9c6d3d0512 100644
+--- a/assets/yaml.worker-D0QDX0Zj.js
++++ b/assets/yaml.worker-D0QDX0Zj.js
+@@ -1 +1 @@
+-function e(e){return new Worker(new URL(`yaml.worker-DD5NU0Ed.js`,import.meta.url).href,{name:e?.name})}export{e as default};
+\ No newline at end of file
++function e(e){return new Worker(new URL(`yaml.worker-DD5NU0Ed.js`,import.meta.url).href,{name:e?.name,type:"module"})}export{e as default};
+\ No newline at end of file

@@ -33,8 +33,8 @@
     "typescript": "npm:typescript-classic@6.0.4"
   },
   "patchedDependencies": {
-    "happy-dom@20.14.5": "patches/happy-dom@20.14.5.patch",
-    "monacozen@0.5.1": "patches/monacozen@0.5.1.patch"
+    "monacozen@0.6.0": "patches/monacozen@0.6.0.patch",
+    "happy-dom@20.14.6": "patches/happy-dom@20.14.6.patch"
   },
   "dependencies": {
     "antimono": "0.1.0",

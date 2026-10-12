@@ -38,6 +38,10 @@
       },
     },
   },
+  "patchedDependencies": {
+    "monacozen@0.6.0": "patches/monacozen@0.6.0.patch",
+    "happy-dom@20.14.6": "patches/happy-dom@20.14.6.patch",
+  },
   "overrides": {
     "typescript": "npm:typescript-classic@6.0.4",
   },

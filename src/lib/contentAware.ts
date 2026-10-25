@@ -1,6 +1,6 @@
 import type {Layer, LayerAlignment} from './state.ts'
 
-import {getLayer, updateLayer, workspaceEpoch} from './actions.ts'
+import {getLayer, getWorkspaceEpoch, updateLayer} from './actions.ts'
 import {registerOutput} from './alignment/index.ts'
 import {assets} from './assets.ts'
 import {getErrorMessage, notify} from './notices.ts'
@@ -60,10 +60,12 @@ export async function setContentAwareAlignment(id: string, enabled: boolean) {
     }
     return
   }
-  const epoch = workspaceEpoch
-  const input = assets.get(layer.evidence!.canvasAssetId!); const output = assets.get(layer.assetId)
+  const epoch = getWorkspaceEpoch()
+  const input = assets.get(layer.evidence!.canvasAssetId!)
+  const output = assets.get(layer.assetId)
   if (!input || !output) {
-    notify('error', 'The captured input of this layer is unavailable.'); return
+    notify('error', 'The captured input of this layer is unavailable.')
+    return
   }
   setPending(id, true)
   const release = assets.pin([input.id, output.id])
@@ -74,7 +76,7 @@ export async function setContentAwareAlignment(id: string, enabled: boolean) {
       applied: registration.applied,
     }
     registrations.set(getRegistrationKey(layer), alignment)
-    if (epoch !== workspaceEpoch || !getLayer(id)) {
+    if (epoch !== getWorkspaceEpoch() || !getLayer(id)) {
       return
     }
     storeAlignment(layer.assetId, alignment)

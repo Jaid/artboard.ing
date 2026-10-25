@@ -30,7 +30,8 @@ export default function ExportDialog() {
       element.close()
     }
   }, [open])
-  let plan: ReturnType<typeof getExportPlan> | null = null; let planError = ''
+  let plan: ReturnType<typeof getExportPlan> | null = null
+  let planError = ''
   if (open) {
     try {
       const region = getExportRegion(scope)
@@ -49,7 +50,8 @@ export default function ExportDialog() {
   }
   const enabled = Boolean(plan && (!plan.limited || allowDownsample)) && !busy
   const run = async (action: () => Promise<unknown>) => {
-    setBusy(true); try {
+    setBusy(true)
+    try {
       await action()
     } finally {
       setBusy(false)
@@ -73,12 +75,14 @@ export default function ExportDialog() {
       ><option value='frame'>{editor.frameEnabled ? 'Current frame · ![0]' : 'Generation area · ![0]'}</option><option value='content'>All visible artwork</option></select></label>
       <label>Resolution<select
         aria-label='Export resolution policy' value={editor.exportMode} onChange={event => {
-          editorStore.set({exportMode: event.currentTarget.value as typeof editor.exportMode}); setAllowDownsample(false)
+          editorStore.set({exportMode: event.currentTarget.value as typeof editor.exportMode})
+          setAllowDownsample(false)
         }}
       ><option value='detail'>Preserve the highest local detail</option><option value='canvas'>Canvas scale · 1 pixel per world unit</option><option value='custom'>Custom scale</option></select></label>
       {editor.exportMode === 'custom' && <label>Scale<input
         aria-label='Custom export scale' max={64} min={0.01} step={0.25} type='number' value={editor.exportScale} onChange={event => {
-          const scale = Number(event.currentTarget.value); if (scale > 0 && scale <= 64) {
+          const scale = Number(event.currentTarget.value)
+          if (scale > 0 && scale <= 64) {
             editorStore.set({exportScale: scale})
           }
         }}

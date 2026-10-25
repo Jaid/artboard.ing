@@ -1,13 +1,13 @@
-import type {FeatherMethod, FeatherShape} from '../src/lib/feather/index.ts'
+import type {FeatherMethod, FeatherShape} from '#src/lib/feather/index.ts'
 
 import {describe, expect, test} from 'bun:test'
 
-import {DistanceFeather} from '../src/lib/feather/DistanceFeather.ts'
-import {distanceTransform} from '../src/lib/feather/distanceTransform.ts'
-import {featherMethods, getFeatherMethod, parseFeatherMethodId} from '../src/lib/feather/index.ts'
-import {SmoothFeather} from '../src/lib/feather/SmoothFeather.ts'
-import {getFeatherCore, getMaskAlpha} from '../src/lib/mask.ts'
-import queryParameters from '../src/queryParameters.ts'
+import {DistanceFeather} from '#src/lib/feather/DistanceFeather.ts'
+import {distanceTransform} from '#src/lib/feather/distanceTransform.ts'
+import {featherMethods, getFeatherMethod, parseFeatherMethodId} from '#src/lib/feather/index.ts'
+import {SmoothFeather} from '#src/lib/feather/SmoothFeather.ts'
+import {getFeatherCore, getMaskAlpha} from '#src/lib/mask.ts'
+import queryParameters from '#src/queryParameters.ts'
 
 const smooth = new SmoothFeather
 const distance = new DistanceFeather
@@ -47,7 +47,8 @@ describe('distance feather', () => {
     const target = shape(0.2, 0.5)
     const smoothstep = (t: number) => t * t * (3 - 2 * t)
     for (const [x, y] of [[10, 120], [30, 30], [5, 7], [200, 60], [390, 230]]) {
-      const qx = Math.abs(x - 200) - (200 - target.radius); const qy = Math.abs(y - 120) - (120 - target.radius)
+      const qx = Math.abs(x - 200) - (200 - target.radius)
+      const qy = Math.abs(y - 120) - (120 - target.radius)
       const signed = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - target.radius
       expect(distance.getAlpha(target, x, y)).toBeCloseTo(signed > 0 ? 0 : smoothstep(Math.min(1, -signed / target.transition)), 9)
     }
@@ -85,11 +86,13 @@ describe('smooth feather', () => {
           if (!Number.isNaN(depth)) {
             expect(right).toBeGreaterThanOrEqual(depth - 1e-5)
           }
-          if (depth > 0 && depth < 1) {
-            const contour = smooth.getContour(target, depth)
-            const qx = Math.abs(x + 0.5 - 200) - contour.halfWidth + contour.radius; const qy = Math.abs(y + 0.5 - 120) - contour.halfHeight + contour.radius
-            expect(Math.abs(Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - contour.radius)).toBeLessThan(2e-3)
+          if (!(depth > 0 && depth < 1)) {
+            continue
           }
+          const contour = smooth.getContour(target, depth)
+          const qx = Math.abs(x + 0.5 - 200) - contour.halfWidth + contour.radius
+          const qy = Math.abs(y + 0.5 - 120) - contour.halfHeight + contour.radius
+          expect(Math.abs(Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - contour.radius)).toBeLessThan(2e-3)
         }
       }
     }
@@ -119,7 +122,8 @@ describe('smooth feather', () => {
     }
   })
   test('the layer turns opaque toward a coverage seam but still blends at its own edge', () => {
-    const width = 200; const height = 200
+    const width = 200
+    const height = 200
     const target = shape(0, 0.6, width, height)
     const depth = smooth.getDepthField(target, width, height)
     // the right half of the layer has no artwork below it
@@ -178,7 +182,8 @@ describe('mask integration', () => {
 })
 describe('distance transform', () => {
   test('matches brute force', () => {
-    const width = 37; const height = 23
+    const width = 37
+    const height = 23
     let seed = 7
     const random = () => (seed = Math.imul(seed, 1_664_525) + 1_013_904_223 >>> 0) / 4_294_967_296
     const seeds = new Uint8Array(width * height).map(() => (random() < 0.03 ? 1 : 0))

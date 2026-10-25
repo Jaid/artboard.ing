@@ -15,10 +15,6 @@ export type MaskSettings = {
   offsetY?: number
   roundness?: number
 }
-export type MaskStop = {
-  alpha: number
-  offset: number
-}
 /** feather depths sampled at the pixel centers of a grid that spans the layer */
 export type FeatherField = Size & {
   depth: Float32Array
@@ -30,7 +26,8 @@ export const isMaskActive = (settings: MaskSettings) => settings.area < 1 || set
 
 export const getMaskMetrics = (settings: MaskSettings, size: Size) => {
   const scale = Math.sqrt(clamp(settings.area, 0, 1))
-  const width = size.width * scale; const height = size.height * scale
+  const width = size.width * scale
+  const height = size.height * scale
   const x = (size.width - width) / 2 + (settings.offsetX ?? 0) * size.width
   const y = (size.height - height) / 2 + (settings.offsetY ?? 0) * size.height
   const radius = clamp(settings.roundness ?? 0, 0, 1) * Math.min(width, height) / 2
@@ -89,9 +86,6 @@ export function getMaskAlpha(settings: MaskSettings, size: Size, x: number, y: n
   }
   return method.getAlpha(shape, x, y)
 }
-
-/** The central compositing invariant: no underlying coverage means no feather-induced loss. */
-export const overlapMaskAlpha = (hard: number, feather: number, underlying: number, allEdges = false) => hard * (1 - (allEdges ? 1 : underlying) * (1 - feather))
 
 export function clipMask(context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, settings: MaskSettings, size: Size) {
   const m = getMaskMetrics(settings, size)
@@ -156,27 +150,4 @@ export function getSoftMask(settings: MaskSettings, size: Size, maxSide = 512, m
     }
     return createAlphaCanvas(alpha, field)
   })
-}
-
-// Retained scalar helpers for callers that need axis diagnostics, not viewport rendering.
-export function getMaskStops(settings: MaskSettings, size: Size, axis: 'x' | 'y'): Array<MaskStop> {
-  const length = axis === 'x' ? size.width : size.height
-  const stops: Array<MaskStop> = []
-  for (let i = 0; i <= 32; i++) {
-    stops.push({
-      offset: i / 32,
-      alpha: getMaskAlpha(settings, size, axis === 'x' ? length * i / 32 : size.width / 2, axis === 'y' ? length * i / 32 : size.height / 2),
-    })
-  }
-  return stops
-}
-export function getMaskCss(settings: MaskSettings, size: Size) {
-  if (!isMaskActive(settings)) {
-    return
-  }
-  const gradient = (axis: 'x' | 'y') => `linear-gradient(${axis === 'x' ? 'to right' : 'to bottom'}, ${getMaskStops(settings, size, axis).map(s => `rgb(0 0 0 / ${s.alpha}) ${s.offset * 100}%`).join(', ')})`
-  return {
-    maskImage: `${gradient('x')}, ${gradient('y')}`,
-    maskComposite: 'intersect',
-  } as const
 }

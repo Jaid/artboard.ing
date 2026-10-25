@@ -176,7 +176,8 @@ export function resizeFrameFromEdge(start: Rect, edge: FrameEdge, pointer: Point
   const horizontal = edge === 'e' || edge === 'w'
   const width = horizontal ? Math.max(16, edge === 'e' ? pointer.x - start.x : start.x + start.width - pointer.x) : start.width
   const height = horizontal ? start.height : Math.max(16, edge === 's' ? pointer.y - start.y : start.y + start.height - pointer.y)
-  const ratio = closestRatio(width / height, ratios); const aspect = parseRatio(ratio)
+  const ratio = closestRatio(width / height, ratios)
+  const aspect = parseRatio(ratio)
   const rect = {
     ...start,
     width: horizontal ? start.height * aspect : start.width,

@@ -28,7 +28,9 @@ export function getContentRect(layer: Pick<Layer, 'alignment' | 'contentAware' |
 
 export function layerToWorld(layer: Pick<Layer, 'rect' | 'rotation'>, local: Point): Point {
   const angle = (layer.rotation ?? 0) * Math.PI / 180
-  const center = rectCenter(layer.rect); const x = local.x - layer.rect.width / 2; const y = local.y - layer.rect.height / 2
+  const center = rectCenter(layer.rect)
+  const x = local.x - layer.rect.width / 2
+  const y = local.y - layer.rect.height / 2
   return {
     x: center.x + x * Math.cos(angle) - y * Math.sin(angle),
     y: center.y + x * Math.sin(angle) + y * Math.cos(angle),
@@ -36,7 +38,9 @@ export function layerToWorld(layer: Pick<Layer, 'rect' | 'rotation'>, local: Poi
 }
 export function worldToLayer(layer: Pick<Layer, 'rect' | 'rotation'>, world: Point): Point {
   const angle = -(layer.rotation ?? 0) * Math.PI / 180
-  const center = rectCenter(layer.rect); const x = world.x - center.x; const y = world.y - center.y
+  const center = rectCenter(layer.rect)
+  const x = world.x - center.x
+  const y = world.y - center.y
   return {
     x: x * Math.cos(angle) - y * Math.sin(angle) + layer.rect.width / 2,
     y: x * Math.sin(angle) + y * Math.cos(angle) + layer.rect.height / 2,

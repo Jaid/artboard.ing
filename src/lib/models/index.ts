@@ -135,7 +135,10 @@ export async function refreshImageCatalog() {
     if (!response.ok) {
       throw new Error(`Image catalog returned HTTP ${response.status}.`)
     }
-    const value = await response.json()
+    const value = await response.json() as {
+      retrievedAt?: string
+      source?: string
+    }
     applyImageCatalog(value)
     if (value.source === 'snapshot') {
       catalogStore.set({

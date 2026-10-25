@@ -63,7 +63,7 @@ const registerProviders = (monaco: MonacoApi) => {
         endLineNumber: position.lineNumber,
         endColumn: position.column,
       })
-      const match = /!\[(\d*)$/.exec(before)
+      const match = /!\[\d*$/.exec(before)
       if (!match) {
         return {suggestions: []}
       }
@@ -146,7 +146,8 @@ const PromptEditor = () => {
       if (!isReferenceDrag(event.dataTransfer)) {
         return
       }
-      event.preventDefault(); event.stopPropagation()
+      event.preventDefault()
+      event.stopPropagation()
       event.dataTransfer!.dropEffect = 'copy'
       const position = positionAt(event)
       if (position && editorRef.current) {
@@ -160,7 +161,8 @@ const PromptEditor = () => {
       if (!isReferenceDrag(event.dataTransfer)) {
         return
       }
-      event.preventDefault(); event.stopPropagation()
+      event.preventDefault()
+      event.stopPropagation()
       const reference = getDroppedReference(event.dataTransfer)
       if (reference) {
         insertIntoPrompt(reference, {
@@ -194,7 +196,7 @@ const PromptEditor = () => {
     }
     const decorations = findReferences(model.getValue()).flatMap(reference => {
       const valid = reference.index === 0 || available.has(reference.index)
-      const className = reference.index === 0 ? css.canvasReference : (valid ? css.reference : css.missingReference)
+      const className = reference.index === 0 ? css.canvasReference : valid ? css.reference : css.missingReference
       // References to the hovered collection tile light up.
       const token = {
         range: range(reference.start, reference.referenceEnd),
@@ -223,11 +225,13 @@ const PromptEditor = () => {
     const unsubscribe = editorStore.subscribe(() => {
       const value = editorStore.state.prompt
       if (editor.getValue() !== value) {
-        editor.setValue(value); updateDecorations()
+        editor.setValue(value)
+        updateDecorations()
       }
     })
     cleanupRef.current = () => {
-      content.dispose(); unsubscribe()
+      content.dispose()
+      unsubscribe()
     }
     monacoRef.current = monaco
     decorationsRef.current = editor.createDecorationsCollection()

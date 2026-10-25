@@ -11,7 +11,8 @@ import {newProject, openPortableProject, savePortableProject} from '#src/lib/wor
 import css from './style.module.sass'
 
 export default function ProjectBar() {
-  const input = useRef<HTMLInputElement>(null); const confirmation = useRef<HTMLDialogElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const confirmation = useRef<HTMLDialogElement>(null)
   const [busy, setBusy] = useState(false)
   const theme = useStore(themeStore, state => state.theme)
   const run = async (action: () => Promise<unknown>) => {
@@ -35,7 +36,8 @@ export default function ProjectBar() {
         event.currentTarget.value = ''
         if (file && confirm('Open this project? Save a project copy first to preserve your current prompt and view settings.')) {
           void run(async () => {
-            await openPortableProject(file); notify('success', 'Project opened.')
+            await openPortableProject(file)
+            notify('success', 'Project opened.')
           })
         }
       }}
@@ -46,12 +48,16 @@ export default function ProjectBar() {
       <button type='button' onClick={() => confirmation.current?.close()}>Cancel</button>
       <button
         disabled={busy} type='button' onClick={() => void run(async () => {
-          await savePortableProject(); await newProject(); confirmation.current?.close()
+          await savePortableProject()
+          await newProject()
+          confirmation.current?.close()
         })}
       >Save a copy, then start new</button>
       <button
         disabled={busy} type='button' onClick={() => void run(async () => {
-          await newProject(); confirmation.current?.close(); notify('success', 'New project started.')
+          await newProject()
+          confirmation.current?.close()
+          notify('success', 'New project started.')
         })}
       >Start new project</button>
     </dialog>

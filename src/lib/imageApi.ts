@@ -98,7 +98,8 @@ export function parseImageResult(value: unknown): ImageResult {
 
 export async function readBoundedBody(response: Request | Response, limit: number, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
   if (Number(response.headers.get('content-length')) > limit) {
-    await response.body?.cancel(); throw new Error('The payload exceeds the size limit.')
+    await response.body?.cancel()
+    throw new Error('The payload exceeds the size limit.')
   }
   const reader = response.body?.getReader()
   if (!reader) {
@@ -122,7 +123,8 @@ export async function readBoundedBody(response: Request | Response, limit: numbe
     const result = new Uint8Array(length)
     let offset = 0
     for (const chunk of chunks) {
-      result.set(chunk, offset); offset += chunk.byteLength
+      result.set(chunk, offset)
+      offset += chunk.byteLength
     }
     return result
   } catch (error) {

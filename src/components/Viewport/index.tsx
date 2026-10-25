@@ -55,15 +55,20 @@ const rectStyle = (rect: Rect, rotation = 0) => ({
   transform: `rotate(${rotation}deg)`,
 })
 export default function Viewport() {
-  const ref = useRef<HTMLDivElement>(null); const canvasRef = useRef<HTMLCanvasElement>(null); const drag = useRef<Drag | null>(null)
-  const editor = useStore(editorStore); const layers = useStore(projectStore, state => state.layers)
+  const ref = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drag = useRef<Drag | null>(null)
+  const editor = useStore(editorStore)
+  const layers = useStore(projectStore, state => state.layers)
   const hoveredAssetId = useHoveredCollectionAssetId()
   const [size, setSize] = useState({
     width: 800,
     height: 600,
   })
-  const [dragKind, setDragKind] = useState<DragKind | null>(null); const [guides, setGuides] = useState<SnapGuides>({})
-  const [space, setSpace] = useState(false); const [frameTouched, setFrameTouched] = useState(false)
+  const [dragKind, setDragKind] = useState<DragKind | null>(null)
+  const [guides, setGuides] = useState<SnapGuides>({})
+  const [space, setSpace] = useState(false)
+  const [frameTouched, setFrameTouched] = useState(false)
   const renderError = useRef('')
   useEffect(() => {
     if (!ref.current) {
@@ -74,7 +79,8 @@ export default function Viewport() {
         width: Math.max(1, entry.contentRect.width),
         height: Math.max(1, entry.contentRect.height),
       }
-      setSize(next); setViewportSize(next)
+      setSize(next)
+      setViewportSize(next)
     })
     observer.observe(ref.current)
     return () => observer.disconnect()
@@ -105,13 +111,15 @@ export default function Viewport() {
           },
           measureEmpty: false,
         })
-        target.width = result.canvas.width; target.height = result.canvas.height
+        target.width = result.canvas.width
+        target.height = result.canvas.height
         target.getContext('2d')!.drawImage(result.canvas, 0, 0)
         renderError.current = ''
       } catch (error) {
         const message = getErrorMessage(error)
         if (renderError.current !== message) {
-          renderError.current = message; notify('error', `Canvas rendering failed: ${message}`)
+          renderError.current = message
+          notify('error', `Canvas rendering failed: ${message}`)
         }
       }
     })
@@ -124,9 +132,11 @@ export default function Viewport() {
     }
     const wheel = (event: WheelEvent) => {
       event.preventDefault()
-      const bounds = element.getBoundingClientRect(); const view = editorStore.state.view
-      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1
-      const dx = event.deltaX * unit; const dy = event.deltaY * unit
+      const bounds = element.getBoundingClientRect()
+      const view = editorStore.state.view
+      const unit = event.deltaMode === 1 ? 16 : (event.deltaMode === 2 ? bounds.height : 1)
+      const dx = event.deltaX * unit
+      const dy = event.deltaY * unit
       if (event.shiftKey || !event.ctrlKey && dx !== 0) {
         editorStore.set({view: {
           ...view,
@@ -144,7 +154,8 @@ export default function Viewport() {
     const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || Boolean(target.closest('input, textarea, select, .monaco-editor')))
     const down = (event: KeyboardEvent) => {
       if (event.code === 'Space' && !editable(event.target)) {
-        event.preventDefault(); setSpace(true)
+        event.preventDefault()
+        setSpace(true)
       }
     }
     const up = (event: KeyboardEvent) => {
@@ -153,11 +164,19 @@ export default function Viewport() {
       }
     }
     const blur = () => {
-      setSpace(false); drag.current = null; setDragKind(null); setGuides({})
+      setSpace(false)
+      drag.current = null
+      setDragKind(null)
+      setGuides({})
     }
-    addEventListener('keydown', down); addEventListener('keyup', up); addEventListener('blur', blur)
+    addEventListener('keydown', down)
+    addEventListener('keyup', up)
+    addEventListener('blur', blur)
     return () => {
-      element.removeEventListener('wheel', wheel); removeEventListener('keydown', down); removeEventListener('keyup', up); removeEventListener('blur', blur)
+      element.removeEventListener('wheel', wheel)
+      removeEventListener('keydown', down)
+      removeEventListener('keyup', up)
+      removeEventListener('blur', blur)
     }
   }, [])
   const pointOf = (event: {
@@ -171,7 +190,8 @@ export default function Viewport() {
     }
   }
   const begin = (event: ReactPointerEvent, kind: DragKind, layer?: Layer, corner?: Corner, edge?: FrameEdge) => {
-    const view = editorStore.state.view; const point = pointOf(event)
+    const view = editorStore.state.view
+    const point = pointOf(event)
     const targets = getSnapTargets(projectStore.state.layers.filter(item => item.visible && item.id !== layer?.id).map(item => getLayerBounds(item)))
     drag.current = {
       kind,
@@ -196,32 +216,39 @@ export default function Viewport() {
       return
     }
     ref.current?.focus({preventScroll: true})
-    const target = event.target as HTMLElement; const state = editorStore.state
+    const target = event.target as HTMLElement
+    const state = editorStore.state
     const world = screenToWorld(state.view, pointOf(event))
+    if (event.button === 1 || space) {
+      begin(event, 'pan')
+      return
+    }
     const selected = projectStore.state.layers.find(item => item.id === state.selectedLayerId)
     const transformable = selected && isLayerTransformable(selected) ? selected : undefined
     const layerCorner = target.closest<HTMLElement>('[data-layer-corner]')?.dataset.layerCorner as Corner | undefined
-    if (event.button === 1 || space) {
-      begin(event, 'pan'); return
-    }
     if (transformable && layerCorner) {
-      begin(event, 'image-resize', transformable, layerCorner); return
+      begin(event, 'image-resize', transformable, layerCorner)
+      return
     }
     if (transformable && target.closest('[data-layer-rotate]')) {
-      begin(event, 'image-rotate', transformable); return
+      begin(event, 'image-rotate', transformable)
+      return
     }
     if (state.tool === 'mask' && selected && projectStore.state.layers[0]?.id !== selected.id && rectContains(getLayerBounds(selected), world)) {
-      begin(event, 'mask-move', selected); return
+      begin(event, 'mask-move', selected)
+      return
     }
     const corner = target.closest<HTMLElement>('[data-corner]')?.dataset.corner as Corner | undefined
     const edge = target.closest<HTMLElement>('[data-edge]')?.dataset.edge as FrameEdge | undefined
     // With no artwork the frame is locked: it can neither be moved nor scaled.
     const frameEditable = state.tool === 'frame' && state.frameEnabled && projectStore.state.layers.length > 0
     if (frameEditable && corner) {
-      begin(event, 'frame-resize', undefined, corner); return
+      begin(event, 'frame-resize', undefined, corner)
+      return
     }
     if (frameEditable && edge) {
-      begin(event, 'frame-edge', undefined, undefined, edge); return
+      begin(event, 'frame-edge', undefined, undefined, edge)
+      return
     }
     const hit = findLayerAt(projectStore.state.layers, world)
     // With no artwork there is nothing to frame, so a press inside the frame pans instead of moving it.
@@ -229,16 +256,22 @@ export default function Viewport() {
       selectLayer(hit?.id ?? null)
       // The base layer stays in place, so dragging it pans like empty canvas.
       if (hit && state.tool !== 'mask' && isLayerTransformable(hit)) {
-        begin(event, 'image-move', hit); return
+        begin(event, 'image-move', hit)
+        return
       }
-      begin(event, 'pan'); return
+      begin(event, 'pan')
+      return
     }
     begin(event, 'frame-move')
   }
   const onMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const point = pointOf(event); const state = editorStore.state; const world = screenToWorld(state.view, point); const active = drag.current
+    const point = pointOf(event)
+    const state = editorStore.state
+    const world = screenToWorld(state.view, point)
+    const active = drag.current
     if (!active) {
-      const frame = toScreenRect(state.view, state.frame); const distance = 14
+      const frame = toScreenRect(state.view, state.frame)
+      const distance = 14
       if (!state.frameEnabled) {
         setFrameTouched(false)
       }
@@ -263,25 +296,24 @@ export default function Viewport() {
       return
     }
     active.moved = true
-    const threshold = event.shiftKey ? 0 : 8 / state.view.scale
-    const delta = {
-      x: world.x - active.world.x,
-      y: world.y - active.world.y,
-    }
-    const options = {
-      coalesceKey: active.key,
-      coalesceWindow: Infinity,
-    }
     if (active.kind === 'pan') {
       editorStore.set({view: {
         ...active.view,
         x: active.view.x + point.x - active.point.x,
         y: active.view.y + point.y - active.point.y,
-      }}); return
+      }})
+      return
+    }
+    const threshold = event.shiftKey ? 0 : 8 / state.view.scale
+    const delta = {
+      x: world.x - active.world.x,
+      y: world.y - active.world.y,
     }
     if (active.kind === 'frame-move') {
       const result = moveRectWithSnapping(active.frame, delta, threshold ? active.targets : undefined, threshold)
-      setFrame(result.rect); setGuides(result.guides); return
+      setFrame(result.rect)
+      setGuides(result.guides)
+      return
     }
     if (active.kind === 'frame-resize') {
       const result = resizeRectFromCorner({
@@ -294,14 +326,21 @@ export default function Viewport() {
         snapTargets: threshold ? active.targets : undefined,
         snapThreshold: threshold,
       })
-      setFrame(result.rect); setGuides(result.guides); return
+      setFrame(result.rect)
+      setGuides(result.guides)
+      return
     }
     if (active.kind === 'frame-edge') {
       const result = resizeFrameFromEdge(active.frame, active.edge!, world, getModel(state.modelId).aspectRatios)
       editorStore.set({
         frame: result.rect,
         ratio: result.ratio,
-      }); return
+      })
+      return
+    }
+    const options = {
+      coalesceKey: active.key,
+      coalesceWindow: Infinity,
     }
     const layer = active.layer!
     if (active.kind === 'image-move') {
@@ -316,7 +355,8 @@ export default function Viewport() {
         x: layer.rect.x + result.rect.x - bounds.x,
         y: layer.rect.y + result.rect.y - bounds.y,
       }}, options)
-      setGuides(result.guides); return
+      setGuides(result.guides)
+      return
     }
     if (active.kind === 'image-resize') {
       const local = worldToLayer(layer, world)
@@ -334,7 +374,8 @@ export default function Viewport() {
         fromCenter: event.altKey,
       })
       const center = layerToWorld(layer, rectCenter(result.rect))
-      updateLayer(layer.id, {rect: rectFromCenter(center, result.rect)}, options); return
+      updateLayer(layer.id, {rect: rectFromCenter(center, result.rect)}, options)
+      return
     }
     if (active.kind === 'image-rotate') {
       const center = rectCenter(layer.rect)
@@ -342,25 +383,28 @@ export default function Viewport() {
       if (event.shiftKey) {
         angle = Math.round(angle / 15) * 15
       }
-      updateLayer(layer.id, {rotation: angle}, options); return
+      updateLayer(layer.id, {rotation: angle}, options)
+      return
     }
-    if (active.kind === 'mask-move') {
-      const local = worldToLayer(layer, world); const start = worldToLayer(layer, active.world)
-      updateLayer(layer.id, {
-        offsetX: (layer.offsetX ?? 0) + (local.x - start.x) / layer.rect.width,
-        offsetY: (layer.offsetY ?? 0) + (local.y - start.y) / layer.rect.height,
-      }, options)
-    }
+    // mask-move
+    const local = worldToLayer(layer, world)
+    const start = worldToLayer(layer, active.world)
+    updateLayer(layer.id, {
+      offsetX: (layer.offsetX ?? 0) + (local.x - start.x) / layer.rect.width,
+      offsetY: (layer.offsetY ?? 0) + (local.y - start.y) / layer.rect.height,
+    }, options)
   }
   const end = (event: ReactPointerEvent) => {
     const active = drag.current
-    if (!active || active.pointerId !== event.pointerId) {
+    if (active?.pointerId !== event.pointerId) {
       return
     }
     if (active.kind === 'frame-move' && !active.moved) {
       selectLayer(findLayerAt(projectStore.state.layers, active.world)?.id ?? null)
     }
-    drag.current = null; setDragKind(null); setGuides({})
+    drag.current = null
+    setDragKind(null)
+    setGuides({})
     if (ref.current?.hasPointerCapture(event.pointerId)) {
       ref.current.releasePointerCapture(event.pointerId)
     }
@@ -369,7 +413,8 @@ export default function Viewport() {
     if (!isIngredientDrag(event.dataTransfer)) {
       return
     }
-    event.preventDefault(); event.stopPropagation()
+    event.preventDefault()
+    event.stopPropagation()
     const ingredient = getDroppedIngredient(event.dataTransfer)
     if (!ingredient) {
       return
@@ -385,7 +430,7 @@ export default function Viewport() {
   const contentRegion = !frameEnabled && (editor.generationHover || editor.hoveredCollectionIndex === 0) ? getContentRegion(layers, getModel(editor.modelId).aspectRatios) : undefined
   // Hovering a collection item shows every layer that uses its image.
   const occurrences = hoveredAssetId ? getAssetOccurrences(layers, hoveredAssetId) : []
-  const selected = layers.find(layer => layer.id === selectedLayerId)
+  const hasSelection = layers.some(layer => layer.id === selectedLayerId)
   const outlined = layers.filter(layer => layer.visible && (layer.id === selectedLayerId || layer.id === hoveredLayerId))
   const frameScreen = toScreenRect(view, frame)
   const grid = 32 * 2 ** Math.round(Math.log2(1 / view.scale)) * view.scale
@@ -398,10 +443,15 @@ export default function Viewport() {
       backgroundPosition: `${view.x}px ${view.y}px`,
     }} tabIndex={0} ref={ref}
     onContextMenu={event => {
-      event.preventDefault(); const world = screenToWorld(editorStore.state.view, pointOf(event)); const hit = findLayerAt(projectStore.state.layers, world); openContextMenu(event.clientX, event.clientY, hit?.id ?? null, world)
+      event.preventDefault()
+      const world = screenToWorld(editorStore.state.view, pointOf(event))
+      const hit = findLayerAt(projectStore.state.layers, world)
+      openContextMenu(event.clientX, event.clientY, hit?.id ?? null, world)
     }} onDoubleClick={event => {
-      const layer = findLayerAt(layers, screenToWorld(editorStore.state.view, pointOf(event))); if (layer) {
-        fitFrameToRect(getLayerBounds(layer)); editorStore.set({
+      const layer = findLayerAt(layers, screenToWorld(editorStore.state.view, pointOf(event)))
+      if (layer) {
+        fitFrameToRect(getLayerBounds(layer))
+        editorStore.set({
           tool: 'frame',
           frameEnabled: true,
         })
@@ -409,17 +459,22 @@ export default function Viewport() {
     }}
     onDragOver={event => {
       if (isIngredientDrag(event.dataTransfer)) {
-        event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy'
+        event.preventDefault()
+        event.stopPropagation()
+        event.dataTransfer.dropEffect = 'copy'
       }
     }} onDrop={dropIngredient} onKeyDown={event => {
       if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') {
-        event.preventDefault(); const box = ref.current!.getBoundingClientRect(); openContextMenu(box.left + box.width / 2, box.top + box.height / 2, selectedLayerId)
+        event.preventDefault()
+        const box = ref.current!.getBoundingClientRect()
+        openContextMenu(box.left + box.width / 2, box.top + box.height / 2, selectedLayerId)
       }
     }} onPointerCancel={end}
     onPointerDown={onDown}
     onPointerLeave={() => {
       if (!drag.current) {
-        setFrameTouched(false); editorStore.set({hoveredLayerId: null})
+        setFrameTouched(false)
+        editorStore.set({hoveredLayerId: null})
       }
     }}
     onPointerMove={onMove}
@@ -436,7 +491,7 @@ export default function Viewport() {
     </div>}
     {occurrences.map(({layer, buried}) => <div key={layer.id} className={clsx(css.occurrence, buried && css.buried, !layer.visible && css.hiddenOccurrence)} data-testid='occurrence' style={rectStyle(toScreenRect(view, layer.rect), layer.rotation)} />)}
     {tool !== 'mask' && contentRegion && <div className={clsx(css.frame, editor.generationHover && css.charged, css.contentRegion)} data-testid='content-region' style={rectStyle(toScreenRect(view, contentRegion.frame))} />}
-    {tool === 'mask' && <div className={css.modeHint}>{selected ? 'Mask edit · drag to reposition · Escape to leave' : 'Select a non-background layer to edit its mask'}</div>}
+    {tool === 'mask' && <div className={css.modeHint}>{hasSelection ? 'Mask edit · drag to reposition · Escape to leave' : 'Select a non-background layer to edit its mask'}</div>}
     {guides.x !== undefined && <div
       className={css.guideX} style={{left: worldToScreen(view, {
         x: guides.x,
@@ -458,8 +513,10 @@ function LayerOutline({layer, view, masked, transform}: {
   transform: boolean
   view: View
 }) {
-  const screen = toScreenRect(view, layer.rect); const metrics = getMaskMetrics(layer, layer.rect)
-  const core = getFeatherCore(layer, layer.rect); const inner = core.inset
+  const screen = toScreenRect(view, layer.rect)
+  const metrics = getMaskMetrics(layer, layer.rect)
+  const core = getFeatherCore(layer, layer.rect)
+  const inner = core.inset
   return <div className={clsx(css.selection, layer.kind === 'generated' && css.generatedSelection)} data-testid='layer-outline' style={rectStyle(screen, layer.rotation)}>
     {masked && layer.area < 1 && <div
       className={css.maskOutline} data-testid='mask-outline' style={{

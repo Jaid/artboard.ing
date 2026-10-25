@@ -1,5 +1,4 @@
-import type {Rect} from '#src/lib/geometry.ts'
-import type {AlignmentResult, GrayImage, Placement} from './align.ts'
+import type {AlignmentResult, GrayImage} from './align.ts'
 import type {AlignmentRequest, AlignmentResponse} from './worker.ts'
 
 import {createCanvas, fitWithin, getContext} from '#src/lib/image.ts'
@@ -79,9 +78,3 @@ export const registerOutput = async (input: AnalysisSource, output: AnalysisSour
   }
 }
 
-export const placementToRect = (frame: Rect, placement: Placement): Rect => ({
-  x: frame.x + placement.x * frame.width,
-  y: frame.y + placement.y * frame.height,
-  width: frame.width * placement.scale,
-  height: frame.height * placement.scale,
-})

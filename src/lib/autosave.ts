@@ -3,7 +3,7 @@ import type {ProjectDocument} from './state.ts'
 
 import queryParameters, {explicitQueryKeys} from '#src/queryParameters.ts'
 
-import {setModel, setRatio, withLayerIngredients} from './actions.ts'
+import {setModel, setRatio} from './actions.ts'
 import {assets} from './assets.ts'
 import {createThumbnailDataUrl, decodeImage} from './image.ts'
 import {getModel} from './models/index.ts'
@@ -114,8 +114,10 @@ async function restore() {
   if (raw.version !== 1) {
     throw new Error('Unsupported autosave version.')
   }
-  const document = parseProjectDocument(raw.document); const editor = parseEditor(raw.editor)
-  const ids = collectDocumentAssetIds([document]); const stored = await loadAssets(ids)
+  const document = parseProjectDocument(raw.document)
+  const editor = parseEditor(raw.editor)
+  const ids = collectDocumentAssetIds([document])
+  const stored = await loadAssets(ids)
   if (stored.length !== ids.size) {
     throw new Error('Some saved images are missing. Recovery has been paused to protect the original data.')
   }
@@ -127,7 +129,7 @@ async function restore() {
   for (const entry of decoded) {
     await assets.add(entry.blob, entry.image, entry.id)
   }
-  projectStore.reset(await rebuildThumbnails(withLayerIngredients(document)))
+  projectStore.reset(await rebuildThumbnails(document))
   editorStore.set({
     ...editor,
     prompt: explicitQueryKeys.has('prompt') ? queryParameters.prompt : editor.prompt,
@@ -140,7 +142,7 @@ async function restore() {
   }
   const model = getModel(editorStore.state.modelId)
   if (explicitQueryKeys.has('resolution')) {
-    editorStore.set({resolution: model.normalizeResolution(queryParameters.resolution) ?? ''})
+    editorStore.set({resolution: model.normalizeResolution(queryParameters.resolution)})
   }
   if (explicitQueryKeys.has('quality')) {
     editorStore.set({quality: model.normalizeQuality(queryParameters.quality) ?? ''})

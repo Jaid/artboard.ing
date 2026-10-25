@@ -2,7 +2,7 @@ import type {Asset} from './assets.ts'
 import type {Orientation, Symmetry} from './orientation.ts'
 import type {Ingredient, Layer, ProjectDocument} from './state.ts'
 
-import {workspaceEpoch} from './actions.ts'
+import {getWorkspaceEpoch} from './actions.ts'
 import {assets} from './assets.ts'
 import {setContentAwareAlignment, supportsContentAwareAlignment} from './contentAware.ts'
 import {createCanvas, createThumbnailDataUrl, encodeCanvas} from './image.ts'
@@ -158,7 +158,7 @@ export const getShownOrientation = (ingredient: Ingredient) => orientationStore.
  * Every layer that shows the image or keeps it as a revision follows along. The latest choice wins when several are prepared at once.
  */
 export async function setIngredientOrientation(id: string, patch: Partial<Orientation>) {
-  const epoch = workspaceEpoch
+  const epoch = getWorkspaceEpoch()
   const ingredient = projectStore.state.ingredients.find(item => item.id === id)
   if (!ingredient) {
     return
@@ -179,7 +179,7 @@ export async function setIngredientOrientation(id: string, patch: Partial<Orient
   const release = assets.pin([source.id])
   try {
     const image = await createOrientedImage(source, getSymmetry(orientation))
-    if (epoch !== workspaceEpoch || orientationStore.state.pending.get(id) !== orientation) {
+    if (epoch !== getWorkspaceEpoch() || orientationStore.state.pending.get(id) !== orientation) {
       return
     }
     const before = projectStore.state

@@ -23,7 +23,7 @@ The production server defaults to `http://127.0.0.1:3000`. Both servers are inte
 
 ### Credentials
 
-Copy `.env.example` to `.env` and set `OPENROUTER_API_KEY`. No credentials were copied from the Mage candidates. Use a fresh key rather than one previously exposed in a published bundle.
+Create a `.env` file that sets `OPENROUTER_API_KEY`. Use a fresh key rather than one previously exposed in a published bundle.
 
 The supplied key remains in the Bun server. Neither a Vite environment prefix nor a compile-time replacement exposes it to JavaScript. The browser receives only a configuration flag and a local anti-CSRF token. A production build is scanned for the supplied key and recognizable OpenRouter key literals.
 
@@ -101,7 +101,7 @@ The collection below the editor is a row-wrapping strip of equally tall thumbnai
 
 Hovering a tile shows a tooltip above it with its name, kind, size and usage. While a tile is hovered, its references in the prompt light up, the layers that use it are outlined on the canvas and their thumbnails are highlighted in the layers panel – or their revision selector, if the image is a revision that is not shown right now. A cropped thumbnail unrolls in place to show the complete picture.
 
-Right-click a tile for **Rotation**, **Flip**, **Export** and **Delete**. The **Rotation** dropdown turns the image by 0°, 90° clockwise, 90° counterclockwise or 180°; the **Flip** dropdown mirrors it horizontally, vertically or not at all – mirroring both ways would just be a 180° turn. Projects saved with the former “Both” flip open as an additional 180° turn. The image is turned first and then mirrored along the axes of the turned picture, so “Horizontal” always mirrors what you see left to right. Both choices are always relative to the original image, which the project keeps: going back to 0° without a flip shows the very original bytes again. The transformed pixels are stored losslessly, and every layer that shows the image – or keeps it as a revision – switches along with it as a single undo step. A quarter turn also turns those layers’ rectangles around their centers, so nothing is stretched; a layer’s own free rotation, mask and adjustments stay as they are. Prompt references, the drag-and-drop copies and **Export** all use the transformed image. A collection image downloads with its current bytes – the original ones unless it is rotated or flipped. Deleting removes it from the collection only; layers that show it keep their pixels. The frame view opens the raster export dialog described below, preset to the frame region.
+Right-click a tile for **Rotation**, **Flip**, **Export** and **Delete**. The **Rotation** dropdown turns the image by 0°, 90° clockwise, 90° counterclockwise or 180°; the **Flip** dropdown mirrors it horizontally, vertically or not at all – mirroring both ways would just be a 180° turn. The image is turned first and then mirrored along the axes of the turned picture, so “Horizontal” always mirrors what you see left to right. Both choices are always relative to the original image, which the project keeps: going back to 0° without a flip shows the very original bytes again. The transformed pixels are stored losslessly, and every layer that shows the image – or keeps it as a revision – switches along with it as a single undo step. A quarter turn also turns those layers’ rectangles around their centers, so nothing is stretched; a layer’s own free rotation, mask and adjustments stay as they are. Prompt references, the drag-and-drop copies and **Export** all use the transformed image. A collection image downloads with its current bytes – the original ones unless it is rotated or flipped. Deleting removes it from the collection only; layers that show it keep their pixels. The frame view opens the raster export dialog described below, preset to the frame region.
 
 ### Masks and outpainting
 
@@ -139,7 +139,7 @@ The app uses the dedicated OpenRouter Image API:
 - Discovery: `/api/v1/images/models`
 - Generation: `/api/v1/images`
 
-`reference/image-models.json` records the dated capability snapshot. The client and gateway refresh capabilities at runtime and keep the snapshot as an explicit offline fallback. All nine requested canonical model IDs are present in the catalog. Nano Banana 2.1 is the default:
+`src/lib/models/catalog.json` records the dated capability snapshot. The client and gateway refresh capabilities at runtime and keep the snapshot as an explicit offline fallback. All nine requested canonical model IDs are present in the catalog. Nano Banana 2.1 is the default:
 
 ```text
 google/gemini-3.1-flash-lite-image
@@ -190,7 +190,7 @@ Browser checks include real PNG/SVG/JXL imports without experimental JXL browser
 
 Provider responses in the repeatable browser suite are deterministic mocks. Running the suite does not spend OpenRouter credits. A real, paid generation smoke test is intentionally separate and requires your configured account.
 
-Test logs and screenshots are written under `out/test/`. Implementation provenance and design decisions are documented in `IMPLEMENTATION.md`.
+Test logs and screenshots are written under `out/test/`.
 
 ## Boundaries
 

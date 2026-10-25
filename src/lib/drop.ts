@@ -26,18 +26,21 @@ export const clientToWorld = (client: Point) => {
 /** Both drop zones accept editable projects; images retain their side-specific meaning. */
 export const routeDroppedFiles = async (files: ReadonlyArray<File>, target: 'canvas' | 'editor', client?: Point) => {
   if (!persistenceStore.state.hydrated) {
-    notify('info', 'The saved workspace is still opening. Drop the file once recovery has finished.'); return
+    notify('info', 'The saved workspace is still opening. Drop the file once recovery has finished.')
+    return
   }
   const projects = files.filter(file => file.name.toLowerCase().endsWith('.artboarding'))
   if (projects.length) {
     if (files.length !== 1) {
-      notify('error', 'Open one project file at a time.'); return
+      notify('error', 'Open one project file at a time.')
+      return
     }
     if (projectStore.state.layers.length && !confirm('Open this project and replace the workspace? Save a project copy first to preserve your current prompt and view settings.')) {
       return
     }
     try {
-      await openPortableProject(projects[0]); notify('success', 'Project opened.')
+      await openPortableProject(projects[0])
+      notify('success', 'Project opened.')
     } catch (error) {
       notify('error', getErrorMessage(error))
     }

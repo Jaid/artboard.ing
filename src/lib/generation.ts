@@ -4,7 +4,7 @@ import type {ImageModel} from './models/index.ts'
 import type {RatioString} from './ratio.ts'
 import type {GenerationEvidence, Job, Layer} from './state.ts'
 
-import {createIngredient, getLayer, withIngredient, workspaceEpoch} from './actions.ts'
+import {createIngredient, getLayer, getWorkspaceEpoch, withIngredient} from './actions.ts'
 import {apiKeyStore, getApiKey, hasApiKey, refreshApiStatus, requestApiKey} from './apiKey.ts'
 import {assets} from './assets.ts'
 import {frameHasContent, getUpstreamCanvasSize, renderRegion} from './composite.ts'
@@ -33,7 +33,8 @@ export const renderFrameInput = (frame: Rect = editorStore.state.frame, maxSide?
   size: getUpstreamCanvasSize(frame, maxSide, maxSide === undefined ? undefined : Math.min(1024, maxSide)),
 })
 export function prepareGeneration(overrides: GenerationOverrides = {}) {
-  const document = projectStore.state; const model = getModel(editorStore.state.modelId)
+  const document = projectStore.state
+  const model = getModel(editorStore.state.modelId)
   // An explicit frame (a retry) keeps its geometry; otherwise the frame, or all artwork while the frame is off, decides.
   const region = overrides.frame ? {
     frame: overrides.frame,
@@ -102,29 +103,35 @@ const ensureDispatchable = async (task: GenerationTask) => {
   if (!apiKeyStore.state.checked && !task.demoMode) {
     await refreshApiStatus()
   }
-  if (task.epoch !== workspaceEpoch) {
+  if (task.epoch !== getWorkspaceEpoch()) {
     return false
   }
   if (!task.demoMode && !hasApiKey()) {
-    requestApiKey(); notify('info', 'Configure the local server or enter a browser-session key. Demo mode does not need a key.'); return false
+    requestApiKey()
+    notify('info', 'Configure the local server or enter a browser-session key. Demo mode does not need a key.')
+    return false
   }
   if (editorStore.state.jobs.filter(job => job.status === 'running').length >= 2) {
-    notify('info', 'Two generations are already running.'); return false
+    notify('info', 'Two generations are already running.')
+    return false
   }
   return true
 }
 
 /** Snapshot first, encode second, send last. Store mutations during a request cannot change its inputs or placement. */
 export async function generate(overrides: GenerationOverrides = {}) {
-  const epoch = workspaceEpoch; const capturedAt = Date.now()
+  const epoch = getWorkspaceEpoch()
+  const capturedAt = Date.now()
   let prepared: ReturnType<typeof prepareGeneration>
   try {
     prepared = prepareGeneration(overrides)
   } catch (error) {
-    notify('error', getErrorMessage(error)); return
+    notify('error', getErrorMessage(error))
+    return
   }
   if (prepared.compiled.errors.length) {
-    notify('error', prepared.compiled.errors.join(' ')); return
+    notify('error', prepared.compiled.errors.join(' '))
+    return
   }
   const {editor, document, compiled, rendered, model} = prepared
   const referenceAssetIds: Array<string> = []
@@ -134,7 +141,8 @@ export async function generate(overrides: GenerationOverrides = {}) {
     }
     const ingredient = document.ingredients.find(item => item.index === source.index)
     if (!ingredient) {
-      notify('error', 'A prompt ingredient is missing.'); return
+      notify('error', 'A prompt ingredient is missing.')
+      return
     }
     referenceAssetIds.push(ingredient.assetId)
   }
@@ -159,19 +167,23 @@ export async function generate(overrides: GenerationOverrides = {}) {
  * The result becomes a further revision of that layer.
  */
 export async function reroll(layerId: string) {
-  const epoch = workspaceEpoch; const capturedAt = Date.now()
+  const epoch = getWorkspaceEpoch()
+  const capturedAt = Date.now()
   const layer = getLayer(layerId)
   const evidence = layer?.evidence
-  if (!layer || layer.kind !== 'generated' || !evidence) {
-    notify('error', 'Only generations can be rerolled.'); return
+  if (layer?.kind !== 'generated' || !evidence) {
+    notify('error', 'Only generations can be rerolled.')
+    return
   }
   const model = getModel(editorStore.state.modelId)
   const inputIds = [...evidence.canvasAssetId ? [evidence.canvasAssetId] : [], ...evidence.referenceAssetIds]
   if (inputIds.some(id => !assets.has(id))) {
-    notify('error', 'The captured input images of this generation are unavailable.'); return
+    notify('error', 'The captured input images of this generation are unavailable.')
+    return
   }
   if (inputIds.length > model.maxReferences) {
-    notify('error', `${model.title} accepts at most ${model.maxReferences} input images, but this generation used ${inputIds.length}. Choose another model to reroll it.`); return
+    notify('error', `${model.title} accepts at most ${model.maxReferences} input images, but this generation used ${inputIds.length}. Choose another model to reroll it.`)
+    return
   }
   const {demoMode, resolution, quality} = editorStore.state
   await runGeneration({
@@ -181,7 +193,7 @@ export async function reroll(layerId: string) {
     demoMode,
     frame: {...layer.rect},
     ratio: closestRatio(layer.rect.width / layer.rect.height, model.aspectRatios),
-    resolution: model.normalizeResolution(resolution) ?? '',
+    resolution: model.normalizeResolution(resolution),
     quality: model.normalizeQuality(quality) ?? '',
     prompt: evidence.prompt,
     compiledPrompt: evidence.compiledPrompt,
@@ -214,13 +226,14 @@ async function runGeneration(task: GenerationTask) {
   }))
   const releases: Array<() => void> = []
   let cost: number | undefined
-  const current = () => epoch === workspaceEpoch && !job.controller.signal.aborted
+  const current = () => epoch === getWorkspaceEpoch() && !job.controller.signal.aborted
   try {
     const ingredientAssets = task.referenceAssetIds.map(id => assets.require(id))
     const capturedCanvas = task.canvas && 'assetId' in task.canvas ? assets.require(task.canvas.assetId) : undefined
     releases.push(assets.pin([...ingredientAssets.map(asset => asset.id), ...capturedCanvas ? [capturedCanvas.id] : []]))
     let canvasAsset: Asset | undefined
-    const referenceAssetIds: Array<string> = []; const input_references: Array<{
+    const referenceAssetIds: Array<string> = []
+    const input_references: Array<{
       image_url: {url: string}
       type: 'image_url'
     }> = []
@@ -258,7 +271,8 @@ async function runGeneration(task: GenerationTask) {
       const source = task.canvas && 'canvas' in task.canvas ? task.canvas.canvas : canvasAsset?.bitmap
       blob = await createDemoImage(task.prompt, job.rect.width / job.rect.height, source, signal, task.variation)
     } else {
-      const key = getApiKey(); const useGateway = !key && apiKeyStore.state.serverConfigured
+      const key = getApiKey()
+      const useGateway = !key && apiKeyStore.state.serverConfigured
       const response = await fetch(useGateway ? '/api/generate' : 'https://openrouter.ai/api/v1/images', {
         method: 'POST',
         signal,
@@ -270,7 +284,8 @@ async function runGeneration(task: GenerationTask) {
         body: JSON.stringify(request),
       })
       if (!response.ok) {
-        await response.body?.cancel(); throw new Error(`Image API request failed (HTTP ${response.status}). Check your key, credit balance and selected model. No layer was added.`)
+        await response.body?.cancel()
+        throw new Error(`Image API request failed (HTTP ${response.status}). Check your key, credit balance and selected model. No layer was added.`)
       }
       const bytes = await readBoundedBody(response, 64_000_000, signal)
       const result = parseImageResult(JSON.parse((new TextDecoder).decode(bytes)))
@@ -283,7 +298,8 @@ async function runGeneration(task: GenerationTask) {
     }
     const raw = await assets.add(blob)
     releases.push(assets.pin([raw.id]))
-    const actualAspect = raw.width / raw.height; const requestedAspect = job.rect.width / job.rect.height
+    const actualAspect = raw.width / raw.height
+    const requestedAspect = job.rect.width / job.rect.height
     if (Math.abs(Math.log(actualAspect / requestedAspect)) > 0.02) {
       notify('info', 'The provider returned a different aspect ratio. It is fitted into the captured frame; the raw output remains in the project.')
     }
@@ -318,7 +334,6 @@ async function runGeneration(task: GenerationTask) {
       visible: true,
       createdAt: Date.now(),
       modelId: model.id,
-      prompt: task.prompt,
       evidence,
     }
     // A reroll whose layer was deleted in the meantime still lands, as a layer of its own.
@@ -360,7 +375,8 @@ async function runGeneration(task: GenerationTask) {
       release()
     }
     if (cost !== undefined) {
-      const billed = cost; editorStore.set(state => ({
+      const billed = cost
+      editorStore.set(state => ({
         ...state,
         sessionCost: state.sessionCost + billed,
       }))

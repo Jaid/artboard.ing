@@ -5,37 +5,21 @@ import {describe, expect, test} from 'bun:test'
 import {collectDocumentAssetIds, parseProjectDocument} from '#src/lib/projectSchema.ts'
 import {getAssetOccurrences, getRevisionIndex, getRevisions, withAddedRevision, withRevision} from '#src/lib/revisions.ts'
 
-const rect = {
-  x: 0,
-  y: 0,
-  width: 100,
-  height: 50,
-}
-const evidence = (id: string, extra: Partial<GenerationEvidence> = {}): GenerationEvidence => ({
-  id,
-  capturedAt: 1,
-  compiledPrompt: 'compiled',
+import {createEvidence, createLayer, createRect} from './lib/fixtures.ts'
+
+const rect = createRect(100, 50)
+const evidence = (id: string, extra: Partial<GenerationEvidence> = {}) => createEvidence(id, {
   frame: rect,
-  modelId: 'google/gemini-nano-banana-2.1',
-  outputAssetId: `out-${id}`,
-  prompt: 'a cat',
-  quality: '',
   ratio: '2:1',
   referenceAssetIds: [`ref-${id}`],
-  resolution: '',
   canvasAssetId: 'canvas',
   ...extra,
 })
-const generated: Layer = {
-  id: 'layer',
+const generated = createLayer('layer', {
   assetId: 'out-a',
   kind: 'generated',
   name: 'a cat',
-  createdAt: 0,
   rect,
-  visible: true,
-  area: 1,
-  feather: 0,
   modelId: 'google/gemini-nano-banana-2.1',
   evidence: evidence('a'),
   contentAware: true,
@@ -45,7 +29,7 @@ const generated: Layer = {
     scale: 1,
     applied: false,
   },
-}
+})
 describe('revisions', () => {
   test('a generation that was never rerolled has one revision', () => {
     expect(getRevisions(generated)).toHaveLength(1)
@@ -124,7 +108,7 @@ describe('revisions', () => {
       ingredients: [],
       nextIngredientIndex: 1,
     }
-    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+    const parsed = parseProjectDocument(structuredClone(document))
     expect(parsed.layers[0].opacity).toBe(0.5)
     expect(parsed.layers[0].revision).toBe(1)
     expect(parsed.layers[0].revisions?.map(item => item.assetId)).toEqual(['out-a', 'out-b'])
@@ -136,7 +120,7 @@ describe('revisions', () => {
     const invalid = (layer: Record<string, unknown>) => () => parseProjectDocument({
       ...document,
       layers: [{
-        ...JSON.parse(JSON.stringify(rerolled)),
+        ...structuredClone(rerolled),
         ...layer,
       }],
     })

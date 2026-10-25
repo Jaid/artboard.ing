@@ -1,10 +1,6 @@
-import type {Layer} from '#src/lib/state.ts'
-
 import {describe, expect, test} from 'bun:test'
 
 import {adjustColor, getAdjustmentParameters, isNeutral, normalizeAdjustments, toGamma} from '#src/lib/adjustments/color.ts'
-import {getActiveAlignment, getContentRect} from '#src/lib/layerGeometry.ts'
-import {parseProjectDocument} from '#src/lib/projectSchema.ts'
 
 const apply = (color: [number, number, number], adjustments: Parameters<typeof getAdjustmentParameters>[0]) => adjustColor([...color], getAdjustmentParameters(adjustments))
 const luma = ([r, g, b]: Array<number>) => 0.2126 * r + 0.7152 * g + 0.0722 * b
@@ -64,83 +60,5 @@ describe('color adjustments', () => {
     const vividGain = chroma(apply(vivid, {vibrance: 0.8})) / chroma(vivid)
     expect(mutedGain).toBeGreaterThan(vividGain)
     expect(vividGain).toBeGreaterThanOrEqual(1)
-  })
-})
-const generated = (extra: Partial<Layer> = {}): Layer => ({
-  id: 'g',
-  assetId: 'output',
-  name: 'generated',
-  kind: 'generated',
-  createdAt: 0,
-  visible: true,
-  area: 1,
-  feather: 0,
-  rect: {
-    x: 0,
-    y: 0,
-    width: 200,
-    height: 100,
-  },
-  ...extra,
-})
-describe('content-aware alignment', () => {
-  const alignment = {
-    x: 0.1,
-    y: -0.05,
-    scale: 0.9,
-    applied: true,
-  }
-  test('the cached registration only moves content while the layer opts in', () => {
-    expect(getContentRect(generated({alignment}))).toEqual({
-      x: 0,
-      y: 0,
-      width: 200,
-      height: 100,
-    })
-    expect(getContentRect(generated({
-      alignment,
-      contentAware: true,
-    }))).toEqual({
-      x: 20,
-      y: -5,
-      width: 180,
-      height: 90,
-    })
-    expect(getActiveAlignment(generated({
-      contentAware: true,
-      alignment: {
-        ...alignment,
-        applied: false,
-      },
-    }))).toBeUndefined()
-  })
-  test('projects keep adjustments and cached registrations', () => {
-    const document = parseProjectDocument({
-      layers: [generated({
-        contentAware: true,
-        alignment,
-        adjustments: {
-          saturation: 0.25,
-          gamma: 0,
-        },
-      })],
-      ingredients: [],
-    })
-    expect(document.layers[0].alignment).toEqual(alignment)
-    expect(document.layers[0].contentAware).toBe(true)
-    expect(document.layers[0].adjustments).toEqual({saturation: 0.25})
-  })
-  test('imports cannot carry a registration and adjustments stay in range', () => {
-    expect(() => parseProjectDocument({
-      layers: [generated({
-        kind: 'import',
-        contentAware: true,
-      })],
-      ingredients: [],
-    })).toThrow()
-    expect(() => parseProjectDocument({
-      layers: [generated({adjustments: {contrast: 4}})],
-      ingredients: [],
-    })).toThrow()
   })
 })

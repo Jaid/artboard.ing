@@ -1,7 +1,7 @@
 import type {Point} from './geometry.ts'
 import type {Ingredient} from './state.ts'
 
-import {addLayer, createIngredient, fitFrameToRect, getPlacementRect, resetProject, withIngredient, workspaceEpoch} from './actions.ts'
+import {addLayer, createIngredient, fitFrameToRect, getPlacementRect, getWorkspaceEpoch, resetProject, withIngredient} from './actions.ts'
 import {assets} from './assets.ts'
 import {flushAutosave, resumeAutosave} from './autosave.ts'
 import {renderRegion} from './composite.ts'
@@ -10,7 +10,7 @@ import {getExportPlan} from './exporting.ts'
 import {encodeCanvas} from './image.ts'
 import {defaultImportedMask, editorStore, projectStore} from './state.ts'
 
-export {openPortableProject, savePortableProject, serializeProject} from './portableProject.ts'
+export {openPortableProject, savePortableProject} from './portableProject.ts'
 
 export async function newProject() {
   resetProject()
@@ -18,24 +18,25 @@ export async function newProject() {
   await flushAutosave()
 }
 export async function referenceAsset(assetId: string, name: string, kind: Ingredient['kind'] = 'import') {
-  const epoch = workspaceEpoch
+  const epoch = getWorkspaceEpoch()
   const existing = projectStore.state.ingredients.find(item => item.assetId === assetId)
   if (existing) {
     return existing
   }
-  const ingredient = await createIngredient(assets.require(assetId), name, kind ?? 'import')
-  if (epoch !== workspaceEpoch) {
+  const ingredient = await createIngredient(assets.require(assetId), name, kind)
+  if (epoch !== getWorkspaceEpoch()) {
     throw new Error('The workspace changed while the reference was being prepared.')
   }
   projectStore.commit(document => withIngredient(document, ingredient))
   return projectStore.state.ingredients.find(item => item.assetId === assetId) ?? ingredient
 }
 export async function captureCanvasSnapshot() {
-  const epoch = workspaceEpoch
-  const layers = projectStore.state.layers; const region = {...editorStore.state.frame}
+  const epoch = getWorkspaceEpoch()
+  const layers = projectStore.state.layers
   if (!layers.some(layer => layer.visible)) {
     throw new Error('Add artwork before capturing a snapshot.')
   }
+  const region = {...editorStore.state.frame}
   const size = getExportPlan(layers, region)
   if (size.limited) {
     throw new Error('This snapshot exceeds the pixel limit. Use a smaller frame.')
@@ -47,7 +48,7 @@ export async function captureCanvasSnapshot() {
     measureEmpty: false,
   })
   const asset = await assets.add(await encodeCanvas(canvas, 'png'))
-  if (epoch !== workspaceEpoch) {
+  if (epoch !== getWorkspaceEpoch()) {
     throw new Error('The workspace changed while the snapshot was being prepared.')
   }
   return referenceAsset(asset.id, `Snapshot ${(new Date).toLocaleTimeString([], {
@@ -57,7 +58,8 @@ export async function captureCanvasSnapshot() {
 }
 /** Places a movable copy of a collection image onto the canvas, centered on the given world point or the frame. */
 export function placeIngredient(ingredient: Ingredient, worldPoint?: Point) {
-  const asset = assets.require(ingredient.assetId); const isFirst = !projectStore.state.layers.length
+  const asset = assets.require(ingredient.assetId)
+  const isFirst = !projectStore.state.layers.length
   const rect = getPlacementRect(asset, worldPoint)
   addLayer({
     id: createId(),

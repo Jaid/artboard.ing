@@ -23,7 +23,6 @@ export type CompiledPrompt = {
   sources: Array<PromptSource>
   text: string
 }
-export const createReferencePattern = () => /!\[(\d+)\]/g
 export const stripComments = (text: string) => text.replaceAll(/<!--[\s\S]*?(?:-->|$)/g, '')
 const escaped = (text: string, index: number) => {
   let count = 0
@@ -33,7 +32,8 @@ const escaped = (text: string, index: number) => {
   return count % 2 === 1
 }
 const closing = (text: string, start: number, open: string, close: string) => {
-  let depth = 1; let quote = ''
+  let depth = 1
+  let quote = ''
   for (let index = start + 1; index < text.length; index++) {
     const char = text[index]
     if (char === '\\') {
@@ -79,9 +79,12 @@ export function findReferences(text: string): Array<ReferenceToken> {
   const tokens: Array<ReferenceToken> = []
   for (let index = 0; index < text.length; index++) {
     if (text.startsWith('<!--', index)) {
-      const end = text.indexOf('-->', index + 4); if (end === -1) {
+      const end = text.indexOf('-->', index + 4)
+      if (end === -1) {
         break
-      } index = end + 2; continue
+      }
+      index = end + 2
+      continue
     }
     if (text[index] === '`' && !escaped(text, index)) {
       let count = 1
@@ -90,7 +93,8 @@ export function findReferences(text: string): Array<ReferenceToken> {
       }
       const end = text.indexOf('`'.repeat(count), index + count)
       if (end !== -1) {
-        index = end + count - 1; continue
+        index = end + count - 1
+        continue
       }
     }
     if (text[index] !== '!' || text[index + 1] !== '[' || escaped(text, index)) {
@@ -116,13 +120,15 @@ export function findReferences(text: string): Array<ReferenceToken> {
           index: Number(label),
           ...description ? {description} : {},
         })
-        index = end; continue
+        index = end
+        continue
       }
     }
     if (suffix === '(' || suffix === '[') {
       const end = closing(text, altEnd + 1, suffix, suffix === '(' ? ')' : ']')
       if (end >= 0) {
-        index = end; continue
+        index = end
+        continue
       }
     }
     if (numeric) {
@@ -151,7 +157,8 @@ export function compilePrompt(options: CompilePromptOptions): CompiledPrompt {
   const sources: Array<PromptSource> = []
   const positions = new Map<number, number>
   if (options.hasCanvasContent) {
-    positions.set(0, 0); sources.push({kind: 'canvas'})
+    positions.set(0, 0)
+    sources.push({kind: 'canvas'})
   } else if (tokens.some(token => token.index === 0)) {
     errors.push('![0] refers to an empty frame. Import an image or remove the canvas reference.')
   }
@@ -160,9 +167,11 @@ export function compilePrompt(options: CompilePromptOptions): CompiledPrompt {
       continue
     }
     if (!Number.isSafeInteger(index) || !available.has(index)) {
-      const message = `![${index}] does not exist. Add a reference image or remove this token.`; if (!errors.includes(message)) {
+      const message = `![${index}] does not exist. Add a reference image or remove this token.`
+      if (!errors.includes(message)) {
         errors.push(message)
-      } continue
+      }
+      continue
     }
     positions.set(index, sources.length)
     sources.push({
@@ -173,7 +182,8 @@ export function compilePrompt(options: CompilePromptOptions): CompiledPrompt {
   if (sources.length > options.maxReferences) {
     errors.push(`This model accepts at most ${options.maxReferences} input images, but this prompt needs ${sources.length}.`)
   }
-  let offset = 0; let rewritten = ''
+  let offset = 0
+  let rewritten = ''
   for (const token of tokens) {
     const position = positions.get(token.index)
     const label = position === undefined ? undefined : getImageLabel(position)

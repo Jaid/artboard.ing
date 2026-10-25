@@ -1,11 +1,13 @@
 import type {Orientation} from '#src/lib/orientation.ts'
-import type {Ingredient, Layer, ProjectDocument} from '#src/lib/state.ts'
+import type {Layer, ProjectDocument} from '#src/lib/state.ts'
 
 import {describe, expect, test} from 'bun:test'
 
 import {getIngredientOrientation, getSourceAssetId, withIngredientOrientation} from '#src/lib/ingredientOrientation.ts'
 import {flips, getPixelTransform, getSymmetry, isIdentitySymmetry, rotations, swapRectAxes, swapsAxes} from '#src/lib/orientation.ts'
 import {collectDocumentAssetIds, parseProjectDocument} from '#src/lib/projectSchema.ts'
+
+import {createEvidence, createIngredient, createLayer, createRect} from './lib/fixtures.ts'
 
 type Grid = Array<Array<number>>
 
@@ -116,50 +118,22 @@ describe('orientation', () => {
     })
   })
 })
-const layer = (id: string, assetId: string, extra: Partial<Layer> = {}): Layer => ({
-  id,
+const frame = createRect(400, 200)
+const layer = (id: string, assetId: string, extra: Partial<Layer> = {}) => createLayer(id, {
   assetId,
-  kind: 'import',
-  name: id,
-  createdAt: 0,
-  rect: {
-    x: 0,
-    y: 0,
-    width: 400,
-    height: 200,
-  },
-  visible: true,
-  area: 1,
-  feather: 0,
+  rect: frame,
   ...extra,
 })
-const ingredient: Ingredient = {
+const ingredient = createIngredient(1, {
   id: 'ingredient',
-  index: 1,
   assetId: 'original',
   name: 'Image',
-  kind: 'import',
   thumbnail: 'thumbnail-original',
-  createdAt: 0,
-}
-const evidence = {
-  id: 'evidence',
-  capturedAt: 0,
-  frame: {
-    x: 0,
-    y: 0,
-    width: 400,
-    height: 200,
-  },
-  modelId: 'model',
-  ratio: '2:1',
-  resolution: '',
-  quality: '',
-  prompt: 'prompt',
-  compiledPrompt: 'prompt',
-  referenceAssetIds: [],
+})
+const evidence = createEvidence('evidence', {
+  frame,
   outputAssetId: 'output',
-}
+})
 const document: ProjectDocument = {
   ingredients: [ingredient],
   layers: [
@@ -184,7 +158,6 @@ const document: ProjectDocument = {
       }],
     }),
   ],
-  layersNumbered: true,
   nextIngredientIndex: 2,
 }
 const quarterTurn: Orientation = {
@@ -283,7 +256,7 @@ describe('collection entry orientation', () => {
       assetId: 'turned',
       thumbnail: '',
     })
-    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(turned)))
+    const parsed = parseProjectDocument(structuredClone(turned))
     expect(parsed.ingredients[0]).toMatchObject({
       assetId: 'turned',
       sourceAssetId: 'original',
@@ -304,33 +277,5 @@ describe('collection entry orientation', () => {
       rotation: undefined,
       flip: undefined,
     }))).toThrow()
-  })
-  test('a former flip in both directions opens as an additional half turn', () => {
-    const both = (patch: Partial<Record<keyof Ingredient, unknown>>) => parseProjectDocument({
-      ...document,
-      ingredients: [{
-        ...ingredient,
-        assetId: 'oriented',
-        sourceAssetId: 'original',
-        flip: 'both',
-        ...patch,
-      }],
-    }).ingredients[0]
-    expect(both({})).toMatchObject({
-      assetId: 'oriented',
-      sourceAssetId: 'original',
-      rotation: 180,
-    })
-    expect(both({rotation: 90})).toMatchObject({rotation: 270})
-    expect(both({rotation: 270})).toMatchObject({rotation: 90})
-    expect(both({rotation: 90}).flip).toBeUndefined()
-    // 180° with both flips was the original image.
-    expect(both({
-      assetId: 'original',
-      rotation: 180,
-    })).toEqual({
-      ...ingredient,
-      thumbnail: '',
-    })
   })
 })

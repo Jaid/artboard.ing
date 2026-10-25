@@ -99,7 +99,8 @@ export const decodeImage = async (blob: Blob): Promise<DecodedImage> => {
       try {
         validateDimensions(bitmap.width, bitmap.height)
       } catch (error) {
-        bitmap.close(); throw error
+        bitmap.close()
+        throw error
       }
       return {
         bitmap,
@@ -123,7 +124,8 @@ export function validateDimensions(width: number, height: number) {
   }
 }
 export const createCanvas = (width: number, height: number) => {
-  width = Math.max(1, Math.round(width)); height = Math.max(1, Math.round(height))
+  width = Math.max(1, Math.round(width))
+  height = Math.max(1, Math.round(height))
   validateDimensions(width, height)
   return new OffscreenCanvas(width, height)
 }
@@ -233,18 +235,13 @@ export const createThumbnailDataUrl = async (bitmap: ImageBitmap, maxSide = 192)
   return blobToDataUrl(await encodeCanvas(canvas, 'webp', 0.85))
 }
 
-export const base64ToBlob = (base64: string, mediaType: string) => {
-  const bytes = Uint8Array.fromBase64(base64)
-  return new Blob([bytes], {type: mediaType})
-}
-
 /** Sol's worker decoder, adapted to the shared immutable-asset pipeline. */
 async function decodeJxl(buffer: ArrayBuffer): Promise<ImageData> {
   const worker = new Worker(new URL('codecs/jxl.worker.ts', import.meta.url), {type: 'module'})
   try {
     return await new Promise<ImageData>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('JPEG XL decoding timed out.')), 30_000)
-      worker.onmessage = (event: MessageEvent<{
+      worker.addEventListener('message', (event: MessageEvent<{
         error?: string
         image?: ImageData
       }>) => {
@@ -254,10 +251,11 @@ async function decodeJxl(buffer: ArrayBuffer): Promise<ImageData> {
         } else {
           reject(new Error(event.data.error ?? 'JPEG XL decoding failed.'))
         }
-      }
-      worker.onerror = () => {
-        clearTimeout(timeout); reject(new Error('The JPEG XL decoder could not start.'))
-      }
+      })
+      worker.addEventListener('error', () => {
+        clearTimeout(timeout)
+        reject(new Error('The JPEG XL decoder could not start.'))
+      })
       worker.postMessage(buffer, [buffer])
     })
   } finally {

@@ -16,7 +16,7 @@ import {getModel} from './models/index.ts'
 import {getErrorMessage, notify} from './notices.ts'
 import {closestRatio, parseRatio} from './ratio.ts'
 import {createEmptyDocument, createInitialEditorState, defaultImportedMask, editorStore, projectStore} from './state.ts'
-import {fitViewToRect, getViewportCenterWorld} from './viewport.ts'
+import {fitViewToRect} from './viewport.ts'
 
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || name
 
@@ -84,7 +84,7 @@ export const setModel = (modelId: string) => {
   editorStore.set(state => ({
     ...state,
     modelId: model.id,
-    resolution: model.normalizeResolution(state.resolution) ?? '',
+    resolution: model.normalizeResolution(state.resolution),
     quality: model.normalizeQuality(state.quality) ?? '',
   }))
   const {ratio} = editorStore.state
@@ -140,7 +140,8 @@ export const updateLayer = (id: string, patch: LayerPatch, options: CommitOption
     }
     if (!Number.isFinite(patch[key])) {
       return
-    } patch[key] = Math.min(1, Math.max(0, patch[key]))
+    }
+    patch[key] = Math.min(1, Math.max(0, patch[key]))
   }
   for (const key of ['offsetX', 'offsetY'] as const) {
     if (!(patch[key] !== undefined)) {
@@ -148,16 +149,18 @@ export const updateLayer = (id: string, patch: LayerPatch, options: CommitOption
     }
     if (!Number.isFinite(patch[key])) {
       return
-    } patch[key] = Math.min(1, Math.max(-1, patch[key]))
+    }
+    patch[key] = Math.min(1, Math.max(-1, patch[key]))
   }
   if (patch.rotation !== undefined) {
     if (!Number.isFinite(patch.rotation)) {
       return
-    } patch.rotation = ((patch.rotation + 180) % 360 + 360) % 360 - 180
+    }
+    patch.rotation = ((patch.rotation + 180) % 360 + 360) % 360 - 180
   }
   if ('adjustments' in patch) {
     // Neutral looks are stored as no adjustments at all.
-    patch.adjustments = patch.adjustments && normalizeAdjustments(patch.adjustments)
+    patch.adjustments &&= normalizeAdjustments(patch.adjustments)
   }
   projectStore.commit(document => mapLayers(document, id, current => {
     const next = {
@@ -251,7 +254,8 @@ export const importLayers = async (files: ReadonlyArray<File>, worldPoint?: Poin
     try {
       const {blob, decoded} = await normalizeImportedImage(file)
       if (epoch !== workspaceEpoch) {
-        decoded.bitmap.close(); return []
+        decoded.bitmap.close()
+        return []
       }
       const asset = await assets.add(blob, decoded)
       const name = stripExtension(file.name || 'Pasted image')
@@ -319,37 +323,6 @@ export const withIngredient = (document: ProjectDocument, ingredient?: Ingredien
   }
 }
 
-/** Older projects only numbered images once they were referenced. They get a number for every layer image once; thumbnails are filled in later. */
-export const withLayerIngredients = (document: ProjectDocument): ProjectDocument => {
-  if (document.layersNumbered) {
-    return document
-  }
-  const known = new Set(document.ingredients.map(item => item.assetId))
-  let next = Math.max(document.nextIngredientIndex ?? 1, ...document.ingredients.map(item => item.index + 1))
-  const added: Array<Ingredient> = []
-  for (const layer of document.layers) {
-    if (known.has(layer.assetId)) {
-      continue
-    }
-    known.add(layer.assetId)
-    added.push({
-      id: createId(),
-      index: next++,
-      assetId: layer.assetId,
-      name: layer.name,
-      kind: layer.kind,
-      thumbnail: '',
-      createdAt: layer.createdAt,
-    })
-  }
-  return {
-    ...document,
-    ingredients: [...document.ingredients, ...added],
-    layersNumbered: true,
-    nextIngredientIndex: next,
-  }
-}
-
 export const addIngredients = async (files: ReadonlyArray<File>) => {
   const epoch = workspaceEpoch
   const images = files.filter(looksLikeImage)
@@ -361,7 +334,8 @@ export const addIngredients = async (files: ReadonlyArray<File>) => {
     try {
       const {blob, decoded} = await normalizeImportedImage(file)
       if (epoch !== workspaceEpoch) {
-        decoded.bitmap.close(); return []
+        decoded.bitmap.close()
+        return []
       }
       const asset = await assets.add(blob, decoded)
       const ingredient = await createIngredient(asset, stripExtension(file.name || 'Pasted image'), 'import')
@@ -391,7 +365,9 @@ export const undo = () => projectStore.undo()
 
 export const redo = () => projectStore.redo()
 
-export let workspaceEpoch = 0
+let workspaceEpoch = 0
+/** changes whenever the workspace is replaced, so pending work can tell that its results no longer belong */
+export const getWorkspaceEpoch = () => workspaceEpoch
 export const advanceWorkspaceEpoch = () => {
   workspaceEpoch++
 }
@@ -421,4 +397,3 @@ export const resetProject = () => {
   fitViewToFrame()
 }
 
-export const getDropWorldPoint = () => getViewportCenterWorld()

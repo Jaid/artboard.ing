@@ -32,12 +32,14 @@ export class SmoothFeather extends FeatherMethod {
       const radius = halfShort * (1 - flatness * halfShort)
       const qx = ax - Math.max(0, halfWidth - inset) + radius
       const qy = ay - Math.max(0, halfHeight - inset) + radius
-      const px = Math.max(qx, 0); const py = Math.max(qy, 0)
+      const px = Math.max(qx, 0)
+      const py = Math.max(qy, 0)
       const inner = Math.max(qx, qy)
       return Math.hypot(px, py) + Math.min(inner, 0) - radius
     }
     return (x: number, y: number) => {
-      const ax = Math.abs(x - centerX); const ay = Math.abs(y - centerY)
+      const ax = Math.abs(x - centerX)
+      const ay = Math.abs(y - centerY)
       const outer = distanceAt(ax, ay, 0)
       if (outer > 0) {
         return Number.NaN

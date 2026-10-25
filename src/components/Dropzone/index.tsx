@@ -1,7 +1,7 @@
 import type {DragEvent, PropsWithChildren} from 'react'
 import type {DropEvent} from 'react-dropzone'
 
-import {createContext, useContext, useState} from 'react'
+import {createContext, use, useState} from 'react'
 import {useDropzone} from 'react-dropzone'
 
 import {routeDroppedFiles} from '#src/lib/drop.ts'
@@ -20,7 +20,7 @@ const DropzoneContext = createContext<DropzoneState>({
   target: null,
 })
 
-export const useDropzoneState = () => useContext(DropzoneContext)
+export const useDropzoneState = () => use(DropzoneContext)
 
 const getDropTarget = (element: EventTarget | null): DropTarget | null => {
   if (!(element instanceof Element)) {

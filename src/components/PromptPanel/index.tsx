@@ -22,8 +22,11 @@ const vendors = [...new Set(models.map(model => model.vendor))]
 /** the two longest labels reserve the width of the generate button, so switching modes never shifts the layout */
 const [widestTitle, secondWidestTitle] = Object.values(generationModeTitles).toSorted((a, b) => b.length - a.length)
 export default function PromptPanel() {
-  const editor = useStore(editorStore); const storage = useStore(persistenceStore); const catalog = useStore(catalogStore)
-  const model = getModel(editor.modelId); const running = editor.jobs.filter(job => job.status === 'running').length
+  const editor = useStore(editorStore)
+  const storage = useStore(persistenceStore)
+  const catalog = useStore(catalogStore)
+  const model = getModel(editor.modelId)
+  const running = editor.jobs.filter(job => job.status === 'running').length
   const charged = (value: boolean) => editorStore.set({generationHover: value})
   const mode = useGenerationMode()
   return <div className={css.panel} data-drop-target='editor'>
@@ -37,7 +40,7 @@ export default function PromptPanel() {
         <CompactSelect label='Quality' options={model.qualities} value={editor.quality} onChange={setQuality} />
         <div className={css.field}><span className={css.fieldLabel}>Frame ratio</span><RatioPicker /></div>
       </div>
-      <div className={css.optionsRow}><label className={css.demo}><input
+      <div className={css.demoRow}><label className={css.demo}><input
         aria-label='Demo mode' checked={editor.demoMode} type='checkbox' onChange={event => editorStore.set({
           demoMode: event.currentTarget.checked,
           ...event.currentTarget.checked && !editorStore.state.prompt.trim() ? {prompt: 'A moonlit mountain observatory above a sea of clouds'} : {},

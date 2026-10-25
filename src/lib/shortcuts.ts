@@ -5,7 +5,7 @@ import {generate} from './generation.ts'
 import {editorStore, projectStore} from './state.ts'
 import {zoomBy} from './viewport.ts'
 
-const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || Boolean(target.closest('.monaco-editor')))
+const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(?:INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || Boolean(target.closest('.monaco-editor')))
 const handleKeyDown = (event: KeyboardEvent) => {
   if (!persistenceStore.state.hydrated) {
     return
@@ -19,22 +19,29 @@ const handleKeyDown = (event: KeyboardEvent) => {
     if (event.target instanceof Element && event.target.closest('.monaco-editor')) {
       return
     }
-    event.preventDefault(); void generate(); return
+    event.preventDefault()
+    void generate()
+    return
   }
   if (editable(event.target)) {
     return
   }
   const key = event.key.toLowerCase()
   if (modifier && key === 'z') {
-    event.preventDefault(); event.shiftKey ? redo() : undo(); return
+    event.preventDefault()
+    event.shiftKey ? redo() : undo()
+    return
   }
   if (modifier && key === 'y') {
-    event.preventDefault(); redo(); return
+    event.preventDefault()
+    redo()
+    return
   }
   if (modifier || event.altKey) {
     return
   }
-  const state = editorStore.state; const layer = projectStore.state.layers.find(item => item.id === state.selectedLayerId)
+  const state = editorStore.state
+  const layer = projectStore.state.layers.find(item => item.id === state.selectedLayerId)
   if (['i', 'm', 'v'].includes(key)) {
     if (key === 'm' && (!layer || projectStore.state.layers[0]?.id === layer.id)) {
       return
@@ -44,22 +51,32 @@ const handleKeyDown = (event: KeyboardEvent) => {
     return
   }
   if (key === 'f') {
-    event.preventDefault(); event.shiftKey ? fitViewToContent() : fitViewToFrame(); return
+    event.preventDefault()
+    event.shiftKey ? fitViewToContent() : fitViewToFrame()
+    return
   }
   if (event.key === '+' || event.key === '=') {
-    event.preventDefault(); zoomBy(1.25); return
+    event.preventDefault()
+    zoomBy(1.25)
+    return
   }
   if (event.key === '-') {
-    event.preventDefault(); zoomBy(0.8); return
+    event.preventDefault()
+    zoomBy(0.8)
+    return
   }
   if (event.key === 'Delete' || event.key === 'Backspace') {
     if (layer) {
-      event.preventDefault(); removeLayer(layer.id); editorStore.set({tool: 'frame'})
+      event.preventDefault()
+      removeLayer(layer.id)
+      editorStore.set({tool: 'frame'})
     }
     return
   }
   if (event.key === 'Escape') {
-    editorStore.set({tool: 'frame'}); selectLayer(null); return
+    editorStore.set({tool: 'frame'})
+    selectLayer(null)
+    return
   }
   if (['ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(event.key)) {
     event.preventDefault()
@@ -97,8 +114,10 @@ const handlePaste = (event: ClipboardEvent) => {
   void routeDroppedFiles(files, editor ? 'editor' : 'canvas')
 }
 export const installShortcuts = () => {
-  addEventListener('keydown', handleKeyDown); addEventListener('paste', handlePaste)
+  addEventListener('keydown', handleKeyDown)
+  addEventListener('paste', handlePaste)
   return () => {
-    removeEventListener('keydown', handleKeyDown); removeEventListener('paste', handlePaste)
+    removeEventListener('keydown', handleKeyDown)
+    removeEventListener('paste', handlePaste)
   }
 }

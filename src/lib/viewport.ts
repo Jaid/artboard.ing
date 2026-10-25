@@ -54,22 +54,16 @@ export const worldToScreen = (view: View, point: Point): Point => ({
   y: point.y * view.scale + view.y,
 })
 
-export type Insets = {
-  bottom: number
-  left: number
-  right: number
-  top: number
-}
-
 /** breathing room around fitted content; the layers panel is docked beside the viewport, not over it */
-export const getOverlayInsets = (_size: Size = viewportSize): Insets => ({
+const insets = {
   top: 24,
   bottom: 24,
   left: 22,
   right: 22,
-})
-
-export const getViewForRect = (rect: Rect, size: Size = viewportSize, insets: Insets = getOverlayInsets(size), padding = 0.06): View => {
+}
+const padding = 0.06
+const getViewForRect = (rect: Rect): View => {
+  const size = viewportSize
   const paddingPixels = Math.min(size.width, size.height) * padding
   const availableWidth = Math.max(32, size.width - insets.left - insets.right - paddingPixels * 2)
   const availableHeight = Math.max(32, size.height - insets.top - insets.bottom - paddingPixels * 2)
@@ -107,8 +101,3 @@ export const zoomBy = (factor: number) => {
     }),
   }))
 }
-
-export const getViewportCenterWorld = () => screenToWorld(editorStore.state.view, {
-  x: viewportSize.width / 2,
-  y: viewportSize.height / 2,
-})

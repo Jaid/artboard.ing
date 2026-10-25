@@ -4,7 +4,6 @@ type Listener = () => void
 
 /** minimal immutable external store, compatible with React’s useSyncExternalStore */
 export class Store<StateGeneric extends object> {
-  readonly getSnapshot = () => this.#state
   readonly subscribe = (listener: Listener) => {
     this.#listeners.add(listener)
     return () => {

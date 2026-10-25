@@ -34,10 +34,3 @@ export const closestRatio = <RatioGeneric extends string>(aspect: number, ratios
 
 export const sortRatios = <RatioGeneric extends string>(ratios: ReadonlyArray<RatioGeneric>) => ratios.toSorted((a, b) => parseRatio(b) - parseRatio(a))
 
-export const describeRatio = (ratio: string) => {
-  const aspect = parseRatio(ratio)
-  if (Math.abs(aspect - 1) < 0.001) {
-    return 'square'
-  }
-  return aspect > 1 ? 'landscape' : 'portrait'
-}

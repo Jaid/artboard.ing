@@ -61,15 +61,6 @@ export const rectUnion = (rects: Iterable<Rect>): Rect | null => {
   return result
 }
 
-export const roundRect = (rect: Rect): Rect => ({
-  x: Math.round(rect.x),
-  y: Math.round(rect.y),
-  width: Math.round(rect.width),
-  height: Math.round(rect.height),
-})
-
-export const rectsEqual = (a: Rect, b: Rect) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
-
 /** Smallest rect with the given aspect ratio (width / height) that fully covers the target, sharing its center. */
 export const coverRect = (target: Rect, aspect: number): Rect => {
   const targetAspect = target.width / target.height

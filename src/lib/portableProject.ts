@@ -1,6 +1,6 @@
 import type {GenerationEvidence, ProjectDocument} from './state.ts'
 
-import {advanceWorkspaceEpoch, withLayerIngredients} from './actions.ts'
+import {advanceWorkspaceEpoch} from './actions.ts'
 import {assets} from './assets.ts'
 import {flushAutosave, getPersistedEditorState, rebuildThumbnails, resumeAutosave} from './autosave.ts'
 import {createId} from './createId.ts'
@@ -11,7 +11,8 @@ import {editorStore, projectStore} from './state.ts'
 
 /** Local, user-initiated project export. Credentials are not part of either serialized state type. */
 export async function serializeProject(): Promise<string> {
-  const document = projectStore.state; const editor = getPersistedEditorState()
+  const document = projectStore.state
+  const editor = getPersistedEditorState()
   const records = await Promise.all([...collectDocumentAssetIds([document])].map(async id => ({
     id,
     dataUrl: await blobToDataUrl(assets.require(id).blob),
@@ -35,20 +36,22 @@ export async function savePortableProject() {
 
 /** Validate and decode a user-selected file before replacing the workspace. Incoming asset IDs are remapped. */
 export async function openPortableProject(file: Blob | File) {
-  const startingDocument = projectStore.state; const startingPrompt = editorStore.state.prompt
-  const unchanged = () => projectStore.state === startingDocument && editorStore.state.prompt === startingPrompt
   if (file.size > 200_000_000) {
     throw new Error('Project files must be smaller than 200 mb.')
   }
+  const startingDocument = projectStore.state
+  const startingPrompt = editorStore.state.prompt
+  const unchanged = () => projectStore.state === startingDocument && editorStore.state.prompt === startingPrompt
   const value: unknown = JSON.parse(await file.text())
   if (!isRecord(value) || value.format !== 'artboarding' || value.version !== 1 || !Array.isArray(value.assets) || value.assets.length > 4000) {
     throw new Error('Unsupported artboard.ing project format.')
   }
-  const document = parseProjectDocument(value.document); const editor = parseEditor(value.editor)
+  const document = parseProjectDocument(value.document)
+  const editor = parseEditor(value.editor)
   const ids = collectDocumentAssetIds([document])
   const raw = new Map<string, string>
   for (const entry of value.assets) {
-    if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.dataUrl !== 'string' || raw.has(entry.id) || !/^data:image\/(jpeg|png|webp);base64,[+/0-9A-Za-z]+={0,2}$/.test(entry.dataUrl)) {
+    if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.dataUrl !== 'string' || raw.has(entry.id) || !/^data:image\/(?:jpeg|png|webp);base64,[+/0-9A-Za-z]+={0,2}$/.test(entry.dataUrl)) {
       throw new Error('Invalid or duplicate project image.')
     }
     raw.set(entry.id, entry.dataUrl)
@@ -64,7 +67,8 @@ export async function openPortableProject(file: Blob | File) {
   }> = []
   try {
     for (const oldId of ids) {
-      const url = raw.get(oldId)!; const comma = url.indexOf(',')
+      const url = raw.get(oldId)!
+      const comma = url.indexOf(',')
       const bytes = Uint8Array.fromBase64(url.slice(comma + 1))
       if (bytes.byteLength > 40_000_000) {
         throw new Error('A project image exceeds the 40 mb source limit.')
@@ -80,12 +84,14 @@ export async function openPortableProject(file: Blob | File) {
   } catch (error) {
     for (const entry of staged) {
       entry.decoded.bitmap.close()
-    } throw error
+    }
+    throw error
   }
   if (!unchanged()) {
     for (const entry of staged) {
       entry.decoded.bitmap.close()
-    } throw new Error('The workspace changed while the project was opening. Your edits were preserved; open the file again when ready.')
+    }
+    throw new Error('The workspace changed while the project was opening. Your edits were preserved; open the file again when ready.')
   }
   const remap = new Map(staged.map(entry => [entry.oldId, entry.id]))
   const remapEvidence = (evidence: GenerationEvidence): GenerationEvidence => ({
@@ -97,7 +103,6 @@ export async function openPortableProject(file: Blob | File) {
   })
   const newDocument: ProjectDocument = {
     nextIngredientIndex: document.nextIngredientIndex,
-    ...document.layersNumbered ? {layersNumbered: true} : {},
     ingredients: document.ingredients.map(item => ({
       ...item,
       id: createId(),
@@ -119,7 +124,7 @@ export async function openPortableProject(file: Blob | File) {
   for (const entry of staged) {
     await assets.add(entry.blob, entry.decoded, entry.id)
   }
-  const hydrated = await rebuildThumbnails(withLayerIngredients(newDocument))
+  const hydrated = await rebuildThumbnails(newDocument)
   if (!unchanged()) {
     throw new Error('The workspace changed while the project was opening. Your edits were preserved.')
   }

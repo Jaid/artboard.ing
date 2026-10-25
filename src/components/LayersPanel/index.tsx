@@ -46,7 +46,8 @@ const adjustmentLabels: Record<AdjustmentKey, {
 }
 const formatSigned = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}`
 export default function LayersPanel() {
-  const layers = useStore(projectStore, state => state.layers); const editor = useStore(editorStore)
+  const layers = useStore(projectStore, state => state.layers)
+  const editor = useStore(editorStore)
   return <section className={clsx(css.panel, editor.layersPanelOpen && css.open)} aria-label='Layers' data-overlay-control data-testid='layers-panel'>
     <button className={css.header} aria-expanded={editor.layersPanelOpen} type='button' onClick={() => editorStore.set({layersPanelOpen: !editor.layersPanelOpen})}><Layers size={14} /><span>Layers</span><span className={css.count}>{layers.length}</span><ChevronDown className={css.chevron} size={14} /></button>
     {editor.layersPanelOpen && <ol className={css.list}>{layers.map((layer, index) => ({
@@ -55,15 +56,14 @@ export default function LayersPanel() {
     })).toReversed().map(({layer, index}) => <LayerRow key={layer.id} background={index === 0} layer={layer} selected={layer.id === editor.selectedLayerId} />)}</ol>}
   </section>
 }
-function MaskSlider({layer, property, label, min = 0, max = 100}: {
+function MaskSlider({layer, property, label, min = 0}: {
   label: string
   layer: Layer
-  max?: number
   min?: number
   property: MaskProperty
 }) {
   const value = layer[property] ?? 0
-  return <label className={css.slider}><span>{label}</span><input aria-label={`${label} of ${layer.name}`} max={max} min={min} step={1} type='range' value={Math.round(value * 100)} onChange={event => updateLayer(layer.id, {[property]: Number(event.currentTarget.value) / 100}, {coalesceKey: `${property}:${layer.id}`})} /><output>{Math.round(value * 100)}%</output></label>
+  return <label className={css.slider}><span>{label}</span><input aria-label={`${label} of ${layer.name}`} max={100} min={min} step={1} type='range' value={Math.round(value * 100)} onChange={event => updateLayer(layer.id, {[property]: Number(event.currentTarget.value) / 100}, {coalesceKey: `${property}:${layer.id}`})} /><output>{Math.round(value * 100)}%</output></label>
 }
 function AdjustmentSlider({layer, property}: {
   layer: Layer
@@ -140,7 +140,8 @@ function LayerRow({layer, background, selected}: {
   layer: Layer
   selected: boolean
 }) {
-  const asset = assets.get(layer.assetId); const tool = useStore(editorStore, state => state.tool)
+  const asset = assets.get(layer.assetId)
+  const tool = useStore(editorStore, state => state.tool)
   const editingMask = selected && tool === 'mask'
   const rerolling = useStore(editorStore, state => state.jobs.some(job => job.layerId === layer.id && job.status === 'running'))
   const hoveredAssetId = useHoveredCollectionAssetId()
@@ -151,7 +152,7 @@ function LayerRow({layer, background, selected}: {
   const revisionHighlighted = hoveredAssetId !== undefined && !thumbnailHighlighted && Boolean(layer.revisions?.some(revision => revision.assetId === hoveredAssetId))
   useEffect(() => {
     if (thumbnailHighlighted || revisionHighlighted) {
-      rowRef.current?.scrollIntoView?.({
+      rowRef.current?.scrollIntoView({
         block: 'nearest',
         behavior: 'smooth',
       })
@@ -159,7 +160,8 @@ function LayerRow({layer, background, selected}: {
   }, [thumbnailHighlighted, revisionHighlighted])
   const [renaming, setRenaming] = useState(false)
   const finish = (value: string) => {
-    setRenaming(false); if (value.trim()) {
+    setRenaming(false)
+    if (value.trim()) {
       updateLayer(layer.id, {name: value.trim()})
     }
   }
@@ -171,14 +173,18 @@ function LayerRow({layer, background, selected}: {
   }
   const toggleMaskEdit = () => {
     if (editingMask) {
-      editorStore.set({tool: 'frame'}); return
+      editorStore.set({tool: 'frame'})
+      return
     }
-    selectLayer(layer.id); editorStore.set({tool: 'mask'})
+    selectLayer(layer.id)
+    editorStore.set({tool: 'mask'})
   }
   return <li
     className={clsx(css.row, selected && css.selected, !layer.visible && css.hidden)} data-kind={layer.kind} data-testid='layer-row' ref={rowRef}
     onContextMenu={event => {
-      event.preventDefault(); selectLayer(layer.id); openContextMenu(event.clientX, event.clientY, layer.id)
+      event.preventDefault()
+      selectLayer(layer.id)
+      openContextMenu(event.clientX, event.clientY, layer.id)
     }} onMouseEnter={() => editorStore.set({hoveredLayerId: layer.id})}
     onMouseLeave={() => editorStore.set({hoveredLayerId: null})}
   >

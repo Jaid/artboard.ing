@@ -2,7 +2,7 @@ import readPermalink, {parseNumber} from 'read-permalink'
 
 import {defaultFeatherMethodId, featherMethodIds, isFeatherMethodId, parseFeatherMethodId} from '#src/lib/feather/featherMethodIds.ts'
 
-const optionalString = (value: unknown) => (value === undefined || value === null ? '' : String(value))
+const optionalString = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '')
 const fraction = (value: unknown) => {
   const number = parseNumber(value)
   // Percentages like “35” are accepted as well as fractions like “0.35”.

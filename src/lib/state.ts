@@ -62,7 +62,6 @@ export type Layer = MaskSettings & {
   name: string
   /** 0–1, fully opaque when absent */
   opacity?: number
-  prompt?: string
   /** placement in world units */
   rect: Rect
   /** index of the shown revision in `revisions` */
@@ -86,7 +85,7 @@ export type Ingredient = {
   id: string
   /** stable number used in prompt references like ![1] */
   index: number
-  kind?: 'generated' | 'import' | 'snapshot'
+  kind: 'generated' | 'import' | 'snapshot'
   name: string
   /** clockwise rotation in degrees; absent means 0 */
   rotation?: Exclude<Rotation, 0>
@@ -101,8 +100,6 @@ export type ProjectDocument = {
   ingredients: ReadonlyArray<Ingredient>
   /** bottom to top; the first layer is the background layer */
   layers: ReadonlyArray<Layer>
-  /** set once every layer image has a collection number; older projects are migrated a single time, so removals stick */
-  layersNumbered?: boolean
   nextIngredientIndex?: number
 }
 
@@ -199,7 +196,7 @@ export const createInitialEditorState = (): EditorState => ({
   prompt: queryParameters.prompt,
   quality: initialModel.normalizeQuality(queryParameters.quality) ?? '',
   ratio: initialRatio,
-  resolution: initialModel.normalizeResolution(queryParameters.resolution) ?? '',
+  resolution: initialModel.normalizeResolution(queryParameters.resolution),
   selectedLayerId: null,
   sessionCost: 0,
   view: {
@@ -212,7 +209,6 @@ export const createInitialEditorState = (): EditorState => ({
 export const createEmptyDocument = (): ProjectDocument => ({
   layers: [],
   ingredients: [],
-  layersNumbered: true,
   nextIngredientIndex: 1,
 })
 
@@ -230,4 +226,3 @@ export const projectStore = new HistoryStore<ProjectDocument>(createEmptyDocumen
 
 export const editorStore = new Store<EditorState>(createInitialEditorState())
 
-export const getActiveModel = () => getModel(editorStore.state.modelId)

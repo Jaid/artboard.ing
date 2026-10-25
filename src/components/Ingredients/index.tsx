@@ -29,7 +29,8 @@ const kindTitles: Record<NonNullable<Ingredient['kind']>, string> = {
 const useAssetRevision = () => {
   const revision = useRef(0)
   return useSyncExternalStore(listener => assets.subscribe(() => {
-    revision.current++; listener()
+    revision.current++
+    listener()
   }), () => revision.current, () => 0)
 }
 const openMenu = (event: MouseEvent, index: number) => {
@@ -47,14 +48,14 @@ type Size = {
   width: number
 }
 
+const clampToWindow = (value: number, size: number, limit: number) => Math.min(Math.max(value, unrollMargin), Math.max(unrollMargin, limit - size - unrollMargin))
 /** where the uncropped picture goes: centered on the tile, as tall (or as wide) as the tile, kept inside the window */
 const getUnrollRect = (tile: DOMRect, aspect: number, crop: NonNullable<ThumbnailFit['crop']>) => {
   const width = crop === 'horizontal' ? tile.height * aspect : tile.width
   const height = crop === 'horizontal' ? tile.height : tile.width / aspect
-  const clamp = (value: number, size: number, limit: number) => Math.min(Math.max(value, unrollMargin), Math.max(unrollMargin, limit - size - unrollMargin))
   return {
-    left: clamp(tile.left + (tile.width - width) / 2, width, innerWidth),
-    top: clamp(tile.top + (tile.height - height) / 2, height, innerHeight),
+    left: clampToWindow(tile.left + (tile.width - width) / 2, width, innerWidth),
+    top: clampToWindow(tile.top + (tile.height - height) / 2, height, innerHeight),
     width,
     height,
   }
@@ -76,19 +77,20 @@ type TileProps = {
   unrolledSource?: string
 }
 
+const addFiles = async () => {
+  try {
+    for (const item of await addIngredients(await pickImageFiles())) {
+      insertIntoPrompt(getReferenceText(item))
+    }
+  } catch (error) {
+    notify('error', getErrorMessage(error))
+  }
+}
+
 /** The collection: the live frame view, then every numbered image as an equally tall thumbnail. Click inserts its reference; drag it onto the canvas or into the prompt. */
 export default function Ingredients() {
   const ingredients = useStore(projectStore, state => state.ingredients)
   const assetRevision = useAssetRevision()
-  const addFiles = async () => {
-    try {
-      for (const item of await addIngredients(await pickImageFiles())) {
-        insertIntoPrompt(getReferenceText(item))
-      }
-    } catch (error) {
-      notify('error', getErrorMessage(error))
-    }
-  }
   return <section className={css.container} aria-label='Image collection' data-testid='ingredients'>
     <div className={css.grid}>
       <FrameView assetRevision={assetRevision} />
@@ -111,7 +113,8 @@ function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId
   const reference = getReferenceText({index})
   const canUnroll = Boolean(fit.crop && (unrolledSource || drawUnrolled))
   const unroll = () => {
-    const tile = tileRef.current; const element = unrollRef.current
+    const tile = tileRef.current
+    const element = unrollRef.current
     if (!tile || !element || !fit.crop || element.matches(':popover-open')) {
       return
     }
@@ -127,7 +130,7 @@ function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId
     if (element instanceof HTMLCanvasElement && drawUnrolled) {
       drawUnrolled(element, rect)
     }
-    element.showPopover?.()
+    element.showPopover()
   }
   const rollUp = () => {
     if (unrollRef.current?.matches(':popover-open')) {
@@ -156,10 +159,12 @@ function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId
     style={{aspectRatio: String(fit.aspect)}}
     ref={tileRef}
     onContextMenu={event => {
-      leave(); openMenu(event, index)
+      leave()
+      openMenu(event, index)
     }}
     onDragStart={event => {
-      leave(); onDragStart(event.dataTransfer)
+      leave()
+      onDragStart(event.dataTransfer)
     }}
     onPointerEnter={() => {
       setHoveredCollectionIndex(index)
@@ -274,14 +279,14 @@ function FrameView({assetRevision}: {assetRevision: number}) {
     onDragStart={dataTransfer => startReferenceDrag(dataTransfer, 0)}
   />
 }
+const layerCount = (count: number) => `${count} layer${count === 1 ? '' : 's'}`
 function IngredientTile({ingredient}: {ingredient: Ingredient}) {
   const asset = assets.get(ingredient.assetId)
   const layers = useStore(projectStore, state => state.layers)
   const occurrences = getAssetOccurrences(layers, ingredient.assetId)
   const buried = occurrences.filter(item => item.buried).length
-  const kind = ingredient.kind ?? 'import'
+  const kind = ingredient.kind
   const reference = getReferenceText(ingredient)
-  const layerCount = (count: number) => `${count} layer${count === 1 ? '' : 's'}`
   const shown = occurrences.length - buried
   const usage = [shown && `Shown by ${layerCount(shown)}`, buried && `Unselected revision in ${layerCount(buried)}`].filter(Boolean).join(' · ') || 'Not on the canvas'
   return <Tile

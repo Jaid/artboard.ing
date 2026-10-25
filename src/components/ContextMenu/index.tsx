@@ -37,9 +37,14 @@ const getTransformLabel = (layer: Layer) => {
   }
   return isLayerTransformable(layer) ? 'Transform imported image' : 'Base layer placement is locked'
 }
-
+/** closes the menu first, then runs its action and reports failures */
+const run = (action: () => unknown) => {
+  closeContextMenu()
+  Promise.try(action).catch((error: unknown) => notify('error', getErrorMessage(error)))
+}
 export default function ContextMenu() {
-  const menu = useStore(contextMenuStore); const ref = useRef<HTMLDivElement>(null)
+  const menu = useStore(contextMenuStore)
+  const ref = useRef<HTMLDivElement>(null)
   const layer = useStore(projectStore, state => state.layers.find(item => item.id === menu.layerId))
   const collectionItem = useStore(projectStore, state => (menu.collectionIndex ? state.ingredients.find(item => item.index === menu.collectionIndex) : undefined))
   const hasArtwork = useStore(projectStore, state => state.layers.some(item => item.visible))
@@ -57,7 +62,8 @@ export default function ContextMenu() {
     }
     addEventListener('pointerdown', dismiss)
     return () => {
-      removeEventListener('pointerdown', dismiss); if (previous?.isConnected) {
+      removeEventListener('pointerdown', dismiss)
+      if (previous?.isConnected) {
         previous.focus({preventScroll: true})
       }
     }
@@ -73,24 +79,24 @@ export default function ContextMenu() {
   if (!menu.open || stale) {
     return null
   }
-  const run = (action: () => unknown) => {
-    closeContextMenu(); Promise.resolve().then(action).catch(error => notify('error', getErrorMessage(error)))
-  }
   const button = (label: string, action: () => unknown, disabled = false) => <button disabled={disabled} role='menuitem' type='button' onClick={() => run(action)}>{label}</button>
-  const estimatedHeight = collection ? 220 : layer ? 650 : 420
+  const estimatedHeight = collection ? 220 : (layer ? 650 : 420)
   return <div
     className={css.menu} aria-label={collection ? 'Collection context menu' : 'Canvas context menu'} data-overlay-control role='menu' style={{
       top: Math.max(8, Math.min(menu.y, innerHeight - estimatedHeight)),
       left: Math.max(8, Math.min(menu.x, innerWidth - 252)),
     }} ref={ref} onContextMenu={event => event.preventDefault()} onKeyDown={event => {
       if (event.key === 'Escape') {
-        event.preventDefault(); closeContextMenu(); return
+        event.preventDefault()
+        closeContextMenu()
+        return
       }
       const buttons = [...ref.current!.querySelectorAll<HTMLElement>(focusableSelector)]
       const index = buttons.indexOf(document.activeElement as HTMLElement)
       if (['ArrowDown', 'ArrowUp', 'End', 'Home'].includes(event.key)) {
-        event.preventDefault(); event.stopPropagation()
-        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
+        event.preventDefault()
+        event.stopPropagation()
+        const next = event.key === 'Home' ? 0 : (event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length)
         buttons[next]?.focus()
       }
     }}
@@ -108,20 +114,24 @@ export default function ContextMenu() {
       {layer && <>
         <strong>{layer.name}</strong>
         {button('Frame it', () => {
-          fitFrameToRect(getLayerBounds(layer)); editorStore.set({
+          fitFrameToRect(getLayerBounds(layer))
+          editorStore.set({
             tool: 'frame',
             frameEnabled: true,
           })
         })}
         {layer.kind === 'generated' && layer.evidence && button('Reroll', () => reroll(layer.id))}
         {button('Use as prompt reference', async () => {
-          const ingredient = await referenceAsset(layer.assetId, layer.name, layer.kind === 'generated' ? 'generated' : 'import'); insertIntoPrompt(`![${ingredient.index}]`)
+          const ingredient = await referenceAsset(layer.assetId, layer.name, layer.kind)
+          insertIntoPrompt(`![${ingredient.index}]`)
         })}
         {button(getTransformLabel(layer), () => {
-          selectLayer(layer.id); editorStore.set({tool: 'image'})
+          selectLayer(layer.id)
+          editorStore.set({tool: 'image'})
         }, !isLayerTransformable(layer))}
         {button('Edit mask', () => {
-          selectLayer(layer.id); editorStore.set({tool: 'mask'})
+          selectLayer(layer.id)
+          editorStore.set({tool: 'mask'})
         }, projectStore.state.layers[0]?.id === layer.id)}
         {button(layer.visible ? 'Hide layer' : 'Show layer', () => updateLayer(layer.id, {visible: !layer.visible}))}
         {button('Move up', () => moveLayerInStack(layer.id, 1))}
@@ -130,7 +140,8 @@ export default function ContextMenu() {
         <hr />
       </>}
       {button('Frame all artwork', () => {
-        fitFrameToContent(); editorStore.set({
+        fitFrameToContent()
+        editorStore.set({
           tool: 'frame',
           frameEnabled: true,
         })
@@ -147,7 +158,8 @@ export default function ContextMenu() {
         }
       })}
       {button('Snapshot the frame into collection', async () => {
-        const ingredient = await captureCanvasSnapshot(); insertIntoPrompt(`![${ingredient.index}]`)
+        const ingredient = await captureCanvasSnapshot()
+        insertIntoPrompt(`![${ingredient.index}]`)
       }, !projectStore.state.layers.some(item => item.visible))}
       <hr />
       {button('Undo · Ctrl+Z', undo, !projectStore.meta.state.canUndo)}

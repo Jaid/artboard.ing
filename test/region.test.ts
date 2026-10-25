@@ -1,45 +1,27 @@
-import type {Layer, ProjectDocument} from '#src/lib/state.ts'
+import {afterEach, describe, expect, test} from 'bun:test'
 
-import {describe, expect, test} from 'bun:test'
-
-import {withIngredient, withLayerIngredients} from '#src/lib/actions.ts'
-import {getExportRegion, getIngredientFileName} from '#src/lib/exporting.ts'
+import {getExportRegion} from '#src/lib/exporting.ts'
 import {getContentRegion, getGenerationMode, getGenerationRegion, hasContentOutside} from '#src/lib/generationRegion.ts'
-import {parseProjectDocument} from '#src/lib/projectSchema.ts'
-import {editorStore, projectStore} from '#src/lib/state.ts'
-import {getThumbnailFit, maxThumbnailAspect, minThumbnailAspect} from '#src/lib/thumbnailFit.ts'
+import {editorStore} from '#src/lib/state.ts'
 
-const layer = (id: string, rect: Layer['rect'], extra: Partial<Layer> = {}): Layer => ({
-  id,
-  assetId: `asset-${id}`,
-  name: id,
-  kind: 'import',
-  createdAt: 0,
-  visible: true,
-  area: 1,
-  feather: 0,
-  rect,
-  ...extra,
-})
-const base = layer('base', {
-  x: 0,
-  y: 0,
-  width: 200,
-  height: 100,
+import {createLayer, createRect, resetProject} from './lib/fixtures.ts'
+
+const base = createLayer('base', {rect: createRect(200, 100)})
+const settings = {
+  modelId: 'google/gemini-nano-banana-2.1',
+  ratio: '1:1',
+} as const
+afterEach(() => {
+  resetProject()
+  editorStore.set({frameEnabled: true})
 })
 describe('generation region', () => {
   test('the frame is used while it is on', () => {
-    const frame = {
-      x: 5,
-      y: 5,
-      width: 10,
-      height: 10,
-    }
+    const frame = createRect(10, 10, 5, 5)
     expect(getGenerationRegion({
+      ...settings,
       frame,
       frameEnabled: true,
-      modelId: 'google/gemini-nano-banana-2.1',
-      ratio: '1:1',
     }, [base])).toEqual({
       frame,
       ratio: '1:1',
@@ -47,21 +29,10 @@ describe('generation region', () => {
   })
   test('a switched-off frame spans all artwork with the closest supported ratio', () => {
     const region = getGenerationRegion({
-      frame: {
-        x: 0,
-        y: 0,
-        width: 1,
-        height: 1,
-      },
+      ...settings,
+      frame: createRect(1, 1),
       frameEnabled: false,
-      modelId: 'google/gemini-nano-banana-2.1',
-      ratio: '1:1',
-    }, [base, layer('top', {
-      x: 150,
-      y: 50,
-      width: 100,
-      height: 100,
-    })])
+    }, [base, createLayer('top', {rect: createRect(100, 100, 150, 50)})])
     // Artwork spans 250 × 150; the frame must cover it completely at a supported ratio.
     expect(region.ratio).toBe('16:9')
     expect(region.frame.width).toBeGreaterThanOrEqual(250)
@@ -71,188 +42,29 @@ describe('generation region', () => {
     expect(region.frame.y + region.frame.height / 2).toBeCloseTo(75)
   })
   test('without artwork a switched-off frame falls back to the frame', () => {
+    const frame = createRect(3, 3, 1, 2)
     expect(getContentRegion([], ['1:1'])).toBeUndefined()
     expect(getGenerationRegion({
-      frame: {
-        x: 1,
-        y: 2,
-        width: 3,
-        height: 3,
-      },
+      ...settings,
+      frame,
       frameEnabled: false,
-      modelId: 'google/gemini-nano-banana-2.1',
-      ratio: '1:1',
-    }, []).frame).toEqual({
-      x: 1,
-      y: 2,
-      width: 3,
-      height: 3,
-    })
+    }, []).frame).toEqual(frame)
   })
   test('content outside the frame is detected with a rounding tolerance', () => {
-    expect(hasContentOutside([base], {
-      x: 0,
-      y: 0,
-      width: 200,
-      height: 100,
-    })).toBe(false)
-    expect(hasContentOutside([base], {
-      x: 0.1,
-      y: 0,
-      width: 199.9,
-      height: 100,
-    })).toBe(false)
-    expect(hasContentOutside([base], {
-      x: 20,
-      y: 0,
-      width: 100,
-      height: 100,
-    })).toBe(true)
+    expect(hasContentOutside([base], createRect(200, 100))).toBe(false)
+    expect(hasContentOutside([base], createRect(199.9, 100, 0.1))).toBe(false)
+    expect(hasContentOutside([base], createRect(100, 100, 20))).toBe(true)
     expect(hasContentOutside([{
       ...base,
       visible: false,
-    }], {
-      x: 20,
-      y: 0,
-      width: 100,
-      height: 100,
-    })).toBe(false)
+    }], createRect(100, 100, 20))).toBe(false)
   })
   test('a frame without artwork generates', () => {
-    expect(getGenerationMode([base], {
-      x: 500,
-      y: 500,
-      width: 100,
-      height: 100,
-    })).toBe('generate')
-  })
-})
-describe('collection numbering', () => {
-  const ingredient = {
-    id: 'i',
-    assetId: 'asset-base',
-    index: 4,
-    name: 'base',
-    kind: 'import' as const,
-    thumbnail: '',
-    createdAt: 0,
-  }
-  test('adding an entry advances the counter and never duplicates an image', () => {
-    const document: ProjectDocument = {
-      layers: [],
-      ingredients: [],
-      nextIngredientIndex: 1,
-    }
-    const added = withIngredient(document, ingredient)
-    expect(added.ingredients).toHaveLength(1)
-    expect(added.nextIngredientIndex).toBe(5)
-    expect(withIngredient(added, {
-      ...ingredient,
-      id: 'j',
-      index: 5,
-    })).toBe(added)
-  })
-  test('older projects number every layer image once, keeping existing numbers', () => {
-    const document: ProjectDocument = {
-      layers: [base, layer('gen', base.rect, {kind: 'generated'}), {
-        ...base,
-        id: 'copy',
-      }],
-      ingredients: [{
-        ...ingredient,
-        assetId: 'asset-other',
-        index: 3,
-      }],
-      nextIngredientIndex: 7,
-    }
-    const migrated = withLayerIngredients(document)
-    expect(migrated.ingredients.map(item => [item.assetId, item.index, item.kind])).toEqual([['asset-other', 3, 'import'], ['asset-base', 7, 'import'], ['asset-gen', 8, 'generated']])
-    expect(migrated.nextIngredientIndex).toBe(9)
-    expect(migrated.layersNumbered).toBe(true)
-    // Once migrated, removed entries are not brought back.
-    const removed = {
-      ...migrated,
-      ingredients: migrated.ingredients.slice(0, 1),
-    }
-    expect(withLayerIngredients(removed)).toBe(removed)
-  })
-  test('the migration flag survives validation', () => {
-    expect(parseProjectDocument({
-      layers: [],
-      ingredients: [],
-      layersNumbered: true,
-    }).layersNumbered).toBe(true)
-    expect(parseProjectDocument({
-      layers: [],
-      ingredients: [],
-    }).layersNumbered).toBeUndefined()
-  })
-})
-describe('collection thumbnails', () => {
-  test('moderate aspects keep the whole image', () => {
-    expect(getThumbnailFit(300, 200)).toEqual({aspect: 1.5})
-    expect(getThumbnailFit(200, 300)).toEqual({aspect: 2 / 3})
-    expect(getThumbnailFit(400, 200)).toEqual({aspect: 2})
-  })
-  test('very tall images are cropped to 2:3 with top and bottom marked', () => {
-    expect(getThumbnailFit(48, 192)).toEqual({
-      aspect: minThumbnailAspect,
-      crop: 'vertical',
-    })
-  })
-  test('very wide images are cropped to 2:1 with left and right marked', () => {
-    expect(getThumbnailFit(1000, 200)).toEqual({
-      aspect: maxThumbnailAspect,
-      crop: 'horizontal',
-    })
-  })
-  test('rounding noise just past a limit is not flagged as a crop', () => {
-    expect(getThumbnailFit(2010, 1000)).toEqual({aspect: maxThumbnailAspect})
-    expect(getThumbnailFit(1000, 1505)).toEqual({aspect: minThumbnailAspect})
-  })
-  test('unknown dimensions fall back to a square', () => {
-    expect(getThumbnailFit(0, 0)).toEqual({aspect: 1})
-  })
-})
-describe('collection export', () => {
-  test('file names follow the item name and its original format', () => {
-    expect(getIngredientFileName({
-      index: 3,
-      name: 'red',
-    }, 'image/png')).toBe('red.png')
-    expect(getIngredientFileName({
-      index: 3,
-      name: 'a/b: "c"?',
-    }, 'image/jpeg')).toBe('a b c.jpg')
-    expect(getIngredientFileName({
-      index: 4,
-      name: '…',
-    }, 'image/webp')).toBe('….webp')
-    expect(getIngredientFileName({
-      index: 5,
-      name: ' / ',
-    }, 'image/svg+xml')).toBe('artboarding_5.svg')
-    expect(getIngredientFileName({
-      index: 6,
-      name: '..hidden',
-    }, 'image/jxl')).toBe('hidden.jxl')
+    expect(getGenerationMode([base], createRect(100, 100, 500, 500))).toBe('generate')
   })
   test('the frame export region is what ![0] shows, also while the frame is off', () => {
-    const frame = {
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 100,
-    }
-    projectStore.reset({
-      layers: [layer('wide', {
-        x: 0,
-        y: 0,
-        width: 300,
-        height: 100,
-      })],
-      ingredients: [],
-    })
+    const frame = createRect(100, 100)
+    resetProject({layers: [createLayer('wide', {rect: createRect(300, 100)})]})
     editorStore.set({
       frame,
       frameEnabled: true,
@@ -262,10 +74,5 @@ describe('collection export', () => {
     const region = getExportRegion('frame')!
     expect(region.width / region.height).toBeGreaterThan(2)
     expect(region.width).toBeGreaterThanOrEqual(300)
-    editorStore.set({frameEnabled: true})
-    projectStore.reset({
-      layers: [],
-      ingredients: [],
-    })
   })
 })

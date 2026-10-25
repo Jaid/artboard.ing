@@ -53,7 +53,8 @@ export default function App() {
   const hydrated = useStore(persistenceStore, state => state.hydrated)
   const stacked = useSyncExternalStore(subscribe, () => typeof matchMedia === 'function' && matchMedia(query).matches, () => false)
   useEffect(() => {
-    void initialize(); return installShortcuts()
+    void initialize()
+    return installShortcuts()
   }, [])
   return <div className={css.container} aria-busy={!hydrated}>
     <div className={css.group} inert={!hydrated}>

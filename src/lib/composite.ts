@@ -26,12 +26,12 @@ assets.subscribeRelease(forgetAdjustedImages)
 
 /** whether a layer contributes any pixels at all */
 export const isLayerShown = (layer: Layer) => layer.visible && (layer.opacity ?? 1) > 0
-export const getVisibleLayers = (layers: ReadonlyArray<Layer>) => layers.filter(layer => layer.visible)
 export const isBackgroundLayer = (layers: ReadonlyArray<Layer>, layer: Layer) => layers[0]?.id === layer.id
 
 const measureEmptyFraction = (canvas: OffscreenCanvas) => {
   const scale = Math.min(1, 192 / Math.max(canvas.width, canvas.height))
-  const probe = createCanvas(canvas.width * scale, canvas.height * scale); const ctx = getContext(probe)
+  const probe = createCanvas(canvas.width * scale, canvas.height * scale)
+  const ctx = getContext(probe)
   ctx.drawImage(canvas, 0, 0, probe.width, probe.height)
   const {data} = ctx.getImageData(0, 0, probe.width, probe.height)
   let empty = 0
@@ -57,8 +57,10 @@ export function renderRegion(options: RenderRegionOptions): RenderedRegion {
   if (!(region.width > 0 && region.height > 0)) {
     throw new Error('A render region must have positive dimensions.')
   }
-  const canvas = createCanvas(size.width, size.height); const ctx = getContext(canvas)
-  const sx = canvas.width / region.width; const sy = canvas.height / region.height
+  const canvas = createCanvas(size.width, size.height)
+  const ctx = getContext(canvas)
+  const sx = canvas.width / region.width
+  const sy = canvas.height / region.height
   const transform = (context: OffscreenCanvasRenderingContext2D, layer: Layer) => {
     context.setTransform(sx, 0, 0, sy, -region.x * sx, -region.y * sy)
     context.translate(layer.rect.x + layer.rect.width / 2, layer.rect.y + layer.rect.height / 2)
@@ -100,9 +102,11 @@ export function renderRegion(options: RenderRegionOptions): RenderedRegion {
     if (layer.feather > 0) {
       // Reduction = existing coverage × (1 − feather). An exposed outer edge has no
       // existing coverage and therefore stays sharp. Never mask the accumulated scene.
-      const reduction = createCanvas(canvas.width, canvas.height); const reduce = getContext(reduction)
+      const reduction = createCanvas(canvas.width, canvas.height)
+      const reduce = getContext(reduction)
       if (layer.featherAllEdges) {
-        reduce.fillStyle = 'white'; reduce.fillRect(0, 0, reduction.width, reduction.height)
+        reduce.fillStyle = 'white'
+        reduce.fillRect(0, 0, reduction.width, reduction.height)
       } else {
         reduce.drawImage(canvas, 0, 0)
       }
@@ -179,7 +183,8 @@ function getSeamAwareMask(layers: ReadonlyArray<Layer>, index: number, resolutio
     .rotate(layer.rotation ?? 0)
     .translate(-layer.rect.width / 2, -layer.rect.height / 2)
     .scale(layer.rect.width / field.width, layer.rect.height / field.height)
-  const sampled = createCanvas(field.width, field.height); const sample = getContext(sampled)
+  const sampled = createCanvas(field.width, field.height)
+  const sample = getContext(sampled)
   sample.setTransform(gridToCoverage.inverse())
   sample.drawImage(coverage, 0, 0)
   const {data} = sample.getImageData(0, 0, field.width, field.height)
@@ -208,7 +213,9 @@ function getSeamAwareMask(layers: ReadonlyArray<Layer>, index: number, resolutio
 export const getContentBounds = (layers: ReadonlyArray<Layer>) => rectUnion(layers.flatMap((layer, i) => (isLayerShown(layer) && (i === 0 || layer.area > 0) ? [getLayerBounds(layer, i > 0)] : [])).filter(rect => rect.width > 0 && rect.height > 0))
 export const frameHasContent = (layers: ReadonlyArray<Layer>, frame: Rect) => layers.some((layer, i) => isLayerShown(layer) && (i === 0 || layer.area > 0) && rectIntersection(getLayerBounds(layer, i > 0), frame) && assets.has(layer.assetId))
 export const getUpstreamCanvasSize = (frame: Rect, maxSide = 2048, minSide = 1024): Size => {
-  const side = Math.max(frame.width, frame.height); const target = Math.min(maxSide, Math.max(minSide, side)); const scale = target / side
+  const side = Math.max(frame.width, frame.height)
+  const target = Math.min(maxSide, Math.max(minSide, side))
+  const scale = target / side
   return {
     width: Math.max(1, Math.round(frame.width * scale)),
     height: Math.max(1, Math.round(frame.height * scale)),

@@ -24,10 +24,6 @@ export class AssetRegistry {
   readonly #listeners = new Set<AssetListener>
   readonly #pins = new Map<string, number>
   readonly #releaseListeners = new Set<ReleaseListener>
-  get ids() {
-    return [...this.#assets.keys()]
-  }
-
   async add(blob: Blob, decoded?: DecodedImage, id: string = createId()) {
     if (this.#assets.has(id)) {
       const existing = this.#assets.get(id)!
@@ -51,10 +47,6 @@ export class AssetRegistry {
       listener()
     }
     return asset
-  }
-
-  clear() {
-    this.retain(new Set, 0)
   }
 
   get(id: string) {

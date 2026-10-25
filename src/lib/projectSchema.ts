@@ -30,11 +30,15 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
   if (!isRecord(value) || !Array.isArray(value.layers) || !Array.isArray(value.ingredients) || value.layers.length > 1000 || value.ingredients.length > 1000) {
     return fail()
   }
-  const ids = new Set<string>; const indexes = new Set<number>
+  const ids = new Set<string>
+  const indexes = new Set<number>
   const uniqueId = (v: unknown) => {
-    const id = text(v); if (ids.has(id)) {
+    const id = text(v)
+    if (ids.has(id)) {
       return fail()
-    } ids.add(id); return id
+    }
+    ids.add(id)
+    return id
   }
   const layers: Array<Layer> = value.layers.map(v => {
     if (!isRecord(v) || !['generated', 'import'].includes(String(v.kind))) {
@@ -74,9 +78,6 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     }
     if (v.modelId !== undefined) {
       result.modelId = text(v.modelId)
-    }
-    if (v.prompt !== undefined) {
-      result.prompt = text(v.prompt, 110_000)
     }
     if (v.contentAware !== undefined) {
       result.contentAware = bool(v.contentAware)
@@ -122,7 +123,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     }
     indexes.add(index)
     const kind = v.kind ?? 'import'
-    if (!['generated', 'import', 'snapshot'].includes(String(kind))) {
+    if (typeof kind !== 'string' || !['generated', 'import', 'snapshot'].includes(kind)) {
       return fail()
     }
     // Thumbnails are regenerated from decoded assets, not trusted HTML or URLs.
@@ -142,18 +143,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     if (v.sourceAssetId !== undefined) {
       result.sourceAssetId = text(v.sourceAssetId)
     }
-    if (v.flip === 'both') {
-      // The former flip in both directions shows the same pixels as an additional half turn.
-      const rotation = ((result.rotation ?? 0) + 180) % 360
-      if (rotation === 0) {
-        // 180° with both flips was the original image itself.
-        delete result.rotation
-        result.assetId = result.sourceAssetId ?? result.assetId
-        delete result.sourceAssetId
-      } else {
-        result.rotation = isRotation(rotation) && rotation !== 0 ? rotation : fail()
-      }
-    } else if (v.flip !== undefined) {
+    if (v.flip !== undefined) {
       result.flip = isFlip(v.flip) && v.flip !== 'none' ? v.flip : fail()
     }
     if (Boolean(result.sourceAssetId) !== Boolean(result.rotation || result.flip)) {
@@ -169,7 +159,6 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     layers,
     ingredients,
     nextIngredientIndex: Number(next),
-    ...value.layersNumbered === true ? {layersNumbered: true} : {},
   }
 }
 const addEvidenceAssetIds = (ids: Set<string>, captured: GenerationEvidence | undefined) => {
@@ -215,21 +204,21 @@ export function parseEditor(value: unknown): PersistedEditorState {
   const ratio = model.supportsRatio(value.ratio) ? value.ratio : closestRatio(parseRatio(value.ratio), model.aspectRatios)
   return {
     frame: parseRect(value.frame),
-    frameEnabled: typeof value.frameEnabled === 'boolean' ? value.frameEnabled : true,
+    frameEnabled: value.frameEnabled !== false,
     view: {
       x: number(value.view.x, -1e10, 1e10),
       y: number(value.view.y, -1e10, 1e10),
       scale: number(value.view.scale, 0.02, 32),
     },
-    layersPanelOpen: typeof value.layersPanelOpen === 'boolean' ? value.layersPanelOpen : true,
+    layersPanelOpen: value.layersPanelOpen !== false,
     modelId: model.id,
     prompt: value.prompt,
     ratio,
-    resolution: model.normalizeResolution(typeof value.resolution === 'string' ? value.resolution : '') ?? '',
+    resolution: model.normalizeResolution(typeof value.resolution === 'string' ? value.resolution : ''),
     quality: model.normalizeQuality(typeof value.quality === 'string' ? value.quality : '') ?? '',
     exportMode: ['canvas', 'custom', 'detail'].includes(String(value.exportMode)) ? value.exportMode as 'canvas' | 'custom' | 'detail' : 'detail',
     exportScale: typeof value.exportScale === 'number' ? number(value.exportScale, 0.01, 64) : 1,
-    demoMode: typeof value.demoMode === 'boolean' ? value.demoMode : false,
+    demoMode: value.demoMode === true,
   }
 }
 

@@ -9,6 +9,6 @@ export const isFeatherMethodId = (value: unknown): value is FeatherMethodId => f
 
 /** Reads a feather method ID case-insensitively; unknown values fall back to the default. */
 export const parseFeatherMethodId = (value: unknown): FeatherMethodId => {
-  const id = String(value ?? '').trim().toLowerCase()
+  const id = typeof value === 'string' ? value.trim().toLowerCase() : ''
   return isFeatherMethodId(id) ? id : defaultFeatherMethodId
 }

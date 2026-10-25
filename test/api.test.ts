@@ -61,7 +61,8 @@ describe('local Image API gateway', () => {
       key,
       token,
       fetch: asFetch(async () => {
-        calls++; return Response.json(output)
+        calls++
+        return Response.json(output)
       }),
     })
     expect((await api(request({origin: 'https://example.invalid'})))?.status).toBe(403)
@@ -91,8 +92,8 @@ describe('local Image API gateway', () => {
     } | undefined
     const api = createApi({key, token, fetch: asFetch(async (input, init) => {
       seen = {
-        url: String(input),
-        body: JSON.parse(String(init?.body)),
+        url: input instanceof Request ? input.url : input.toString(),
+        body: JSON.parse(init?.body as string),
         authorization: new Headers(init?.headers).get('authorization'),
       }
       return Response.json(output)
@@ -128,7 +129,8 @@ describe('local Image API gateway', () => {
       key,
       token,
       fetch: asFetch(async () => {
-        calls++; return Response.json(output)
+        calls++
+        return Response.json(output)
       }),
     })
     expect((await api(request({headers: {'Content-Type': 'text/plain'}})))?.status).toBe(415)
@@ -150,16 +152,19 @@ describe('local Image API gateway', () => {
         controllers.push(controller)
       }}))),
     })
-    const first = api(request()); const second = api(request())
+    const first = api(request())
+    const second = api(request())
     for (let i = 0; i < 100 && controllers.length < 2; i++) {
       await Bun.sleep(1)
     }
     expect(controllers.length).toBe(2)
     expect((await api(request()))?.status).toBe(429)
     for (const controller of controllers) {
-      controller.enqueue((new TextEncoder).encode(JSON.stringify(output))); controller.close()
+      controller.enqueue((new TextEncoder).encode(JSON.stringify(output)))
+      controller.close()
     }
-    expect((await first)?.status).toBe(200); expect((await second)?.status).toBe(200)
+    expect((await first)?.status).toBe(200)
+    expect((await second)?.status).toBe(200)
   })
   test('redirect-prone and non-HTTPS public upstream bases are refused', () => {
     expect(() => createApi({baseUrl: 'http://public.invalid/api'})).toThrow('HTTPS')

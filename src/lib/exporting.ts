@@ -1,4 +1,4 @@
-import type {Rect, Size} from './geometry.ts'
+import type {Rect} from './geometry.ts'
 import type {ExportFormat} from './image.ts'
 import type {Ingredient, Layer} from './state.ts'
 
@@ -53,16 +53,18 @@ export function getExportPlan(layers: ReadonlyArray<Layer>, region: Rect, policy
         continue
       }
       const asset = assets.get(layer.assetId)
-      if (asset) {
-        const content = getContentRect(layer)
-        density = Math.max(density, asset.width / content.width, asset.height / content.height)
+      if (!asset) {
+        continue
       }
+      const content = getContentRect(layer)
+      density = Math.max(density, asset.width / content.width, asset.height / content.height)
     }
   }
   if (!Number.isFinite(density) || density <= 0) {
     throw new Error('Export scale must be a positive number.')
   }
-  const requestedWidth = Math.max(1, Math.round(region.width * density)); const requestedHeight = Math.max(1, Math.round(region.height * density))
+  const requestedWidth = Math.max(1, Math.round(region.width * density))
+  const requestedHeight = Math.max(1, Math.round(region.height * density))
   const reduction = Math.min(1, MAX_EDGE / Math.max(requestedWidth, requestedHeight), Math.sqrt(MAX_PIXELS / (requestedWidth * requestedHeight)))
   return {
     width: Math.max(1, Math.floor(requestedWidth * reduction)),
@@ -73,7 +75,6 @@ export function getExportPlan(layers: ReadonlyArray<Layer>, region: Rect, policy
     limited: reduction < 1,
   }
 }
-export const getExportSize = (layers: ReadonlyArray<Layer>, region: Rect): Size => getExportPlan(layers, region)
 /** “frame” is the region `![0]` shows: the frame, or all artwork while the frame is off */
 export const getExportRegion = (scope: ExportScope) => (scope === 'frame' ? getGenerationRegion(editorStore.state, projectStore.state.layers).frame : getContentBounds(projectStore.state.layers))
 export const currentExportPolicy = (): ExportPolicy => ({
@@ -102,8 +103,11 @@ export async function renderExport(scope: ExportScope, format: ExportFormat, qua
 }
 export const createFileName = (extension: string) => `artboarding_${(new Date).toISOString().slice(0, 19).replaceAll(':', '-').replace('T', '_')}.${extension}`
 export function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
-  anchor.href = url; anchor.download = fileName; anchor.click()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  anchor.click()
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 export async function exportImage(scope: ExportScope, format: ExportFormat, policy?: ExportPolicy) {

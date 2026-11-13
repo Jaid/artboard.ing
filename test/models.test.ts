@@ -17,6 +17,12 @@ const request = {
   }],
 }
 describe('models', () => {
+  test('Nano Banana 2.1 has catalog-listed fallback endpoint ratios with either ID form', () => {
+    const ratios = ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9'] as const
+    expect(findEndpointRatios('gemini-nano-banana-2.1')).toEqual(ratios)
+    expect(findEndpointRatios('google/gemini-nano-banana-2.1')).toEqual(ratios)
+    expect(findEndpointRatios('gemini-nano-banana-2.0')).toBeUndefined()
+  })
   test('GPT Image 2.6 Sunburst has explicit endpoint ratios with either ID form', () => {
     const ratios = ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '4:5', '5:4', '1:2', '2:1', '9:21', '21:9', '1:3', '3:1'] as const
     expect(findEndpointRatios('gpt-image-2.6-sunburst')).toEqual(ratios)

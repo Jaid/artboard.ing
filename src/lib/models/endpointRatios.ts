@@ -12,6 +12,11 @@ export const endpointRatios: ReadonlyArray<{
   ratios: ReadonlyArray<RatioString>
 }> = [
   {
+    // OpenRouter catalog ratios; CLIProxyAPI returned model_not_found for this model on 2026-11-13, so sizes are unverified.
+    pattern: '{,*/}gemini-nano-banana-2.1',
+    ratios: ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9'],
+  },
+  {
     // Supported ratios documented for GPT Image 2.6 Sunburst; CLIProxyAPI behavior has not been tested.
     pattern: '{,*/}gpt-image-2.6-sunburst',
     ratios: ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '4:5', '5:4', '1:2', '2:1', '9:21', '21:9', '1:3', '3:1'],

@@ -12,7 +12,6 @@ export type PromptSource = {
   kind: 'ingredient'
 } | {kind: 'canvas'}
 export type CompilePromptOptions = {
-  canvasHasEmptyAreas?: boolean
   hasCanvasContent: boolean
   ingredientIndices: Iterable<number>
   maxReferences: number
@@ -143,9 +142,9 @@ export function findReferences(text: string): Array<ReferenceToken> {
   }
   return tokens
 }
-export const getImageLabel = (position: number) => `[Image ${position + 1}]`
+export const getImageLabel = (position: number) => `[image ${position + 1}]`
 
-/** The framed canvas is always first when it contains content, even if other references are explicit. */
+/** The framed canvas is always first when it contains content, even if other references are explicit. The prompt is sent as written, only with references rewritten to image labels. */
 export function compilePrompt(options: CompilePromptOptions): CompiledPrompt {
   const text = stripComments(options.text).trim()
   const errors: Array<string> = []
@@ -187,7 +186,7 @@ export function compilePrompt(options: CompilePromptOptions): CompiledPrompt {
   for (const token of tokens) {
     const position = positions.get(token.index)
     const label = position === undefined ? undefined : getImageLabel(position)
-    // A description is written out directly before the image it describes: “add this witch [Image 2] to …”.
+    // A description is written out directly before the image it describes: “add this witch [image 2] to …”.
     let replacement = text.slice(token.start, token.end)
     if (label !== undefined) {
       replacement = token.description ? `${token.description} ${label}` : label
@@ -196,28 +195,9 @@ export function compilePrompt(options: CompilePromptOptions): CompiledPrompt {
     offset = token.end
   }
   rewritten += text.slice(offset)
-  if (!sources.length) {
-    return {
-      errors,
-      sources,
-      text: rewritten,
-    }
-  }
-  const preamble: Array<string> = []
-  if (options.hasCanvasContent) {
-    preamble.push('[Image 1] is a crop of a larger picture. The result will be pasted back over exactly that spot. Edit in place: preserve the exact framing, camera position, zoom, lighting, and position and size of every subject, even when cut off by a border. Never recenter, zoom, crop or recompose. Change only what the instructions ask for.')
-    if (options.canvasHasEmptyAreas) {
-      preamble.push('Flat neutral gray areas in [Image 1] mark empty canvas. Extend the existing content seamlessly into those areas; do not add a border.')
-    }
-  }
-  for (const [i, source] of sources.entries()) {
-    if (source.kind === 'ingredient') {
-      preamble.push(`${getImageLabel(i)} is the reference image named ![${source.index}] by the user.`)
-    }
-  }
   return {
     errors,
     sources,
-    text: `${preamble.join('\n')}\n\nInstructions:\n${rewritten}`,
+    text: rewritten,
   }
 }

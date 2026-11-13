@@ -4,7 +4,7 @@ import type {PersistedEditorState} from './persistence.ts'
 import type {GenerationEvidence, GenerationRevision, Ingredient, Layer, LayerAlignment, ProjectDocument} from './state.ts'
 
 import {adjustmentKeys, normalizeAdjustments} from './adjustments/index.ts'
-import {findModel} from './models/index.ts'
+import {defaultModel, findModel} from './models/index.ts'
 import {isFlip, isRotation} from './orientation.ts'
 import {closestRatio, isRatioString, parseRatio} from './ratio.ts'
 
@@ -13,6 +13,7 @@ const fail = (): never => {
   throw new Error('Invalid or unsupported artboard.ing project. The existing workspace was not replaced.')
 }
 const text = (v: unknown, limit = 200) => (typeof v === 'string' && v.length > 0 && v.length <= limit ? v : fail())
+const emptyText = (v: unknown) => (typeof v === 'string' && v.length <= 110_000 ? v : fail())
 const number = (v: unknown, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : fail())
 const bool = (v: unknown) => (typeof v === 'boolean' ? v : fail())
 export function parseRect(v: unknown): Rect {
@@ -103,7 +104,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
         return fail()
       }
       result.revisions = v.revisions.map(revision)
-      const shown = number(v.revision ?? 0, 0, result.revisions.length - 1)
+      const shown = number(v.revision, 0, result.revisions.length - 1)
       if (!Number.isSafeInteger(shown)) {
         return fail()
       }
@@ -122,8 +123,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
       return fail()
     }
     indexes.add(index)
-    const kind = v.kind ?? 'import'
-    if (typeof kind !== 'string' || !['generated', 'import', 'snapshot'].includes(kind)) {
+    if (!['generated', 'import', 'snapshot'].includes(String(v.kind))) {
       return fail()
     }
     // Thumbnails are regenerated from decoded assets, not trusted HTML or URLs.
@@ -134,7 +134,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
       name: text(v.name, 1000),
       createdAt: number(v.createdAt, 0, 9e15),
       thumbnail: '',
-      kind: kind as Ingredient['kind'],
+      kind: v.kind as Ingredient['kind'],
     }
     if (v.rotation !== undefined) {
       result.rotation = isRotation(v.rotation) && v.rotation !== 0 ? v.rotation : fail()
@@ -151,14 +151,14 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     }
     return result
   })
-  const next = value.nextIngredientIndex ?? Math.max(0, ...indexes) + 1
-  if (!Number.isSafeInteger(next) || Number(next) <= Math.max(0, ...indexes)) {
+  const next = number(value.nextIngredientIndex, 1, Number.MAX_SAFE_INTEGER)
+  if (!Number.isSafeInteger(next) || next <= Math.max(0, ...indexes)) {
     return fail()
   }
   return {
     layers,
     ingredients,
-    nextIngredientIndex: Number(next),
+    nextIngredientIndex: next,
   }
 }
 const addEvidenceAssetIds = (ids: Set<string>, captured: GenerationEvidence | undefined) => {
@@ -197,28 +197,30 @@ export function parseEditor(value: unknown): PersistedEditorState {
   if (!isRecord(value) || !isRecord(value.view) || typeof value.prompt !== 'string' || value.prompt.length > 100_000) {
     return fail()
   }
-  const model = findModel(value.modelId)
+  // A model that is no longer offered, like a model_id from an earlier visit, falls back to the default instead of failing recovery.
+  const model = typeof value.modelId === 'string' ? findModel(value.modelId) ?? defaultModel : undefined
   if (!model || !isRatioString(value.ratio)) {
     return fail()
   }
   const ratio = model.supportsRatio(value.ratio) ? value.ratio : closestRatio(parseRatio(value.ratio), model.aspectRatios)
   return {
     frame: parseRect(value.frame),
-    frameEnabled: value.frameEnabled !== false,
+    frameEnabled: bool(value.frameEnabled),
     view: {
       x: number(value.view.x, -1e10, 1e10),
       y: number(value.view.y, -1e10, 1e10),
       scale: number(value.view.scale, 0.02, 32),
     },
-    layersPanelOpen: value.layersPanelOpen !== false,
+    layersPanelOpen: bool(value.layersPanelOpen),
     modelId: model.id,
     prompt: value.prompt,
     ratio,
-    resolution: model.normalizeResolution(typeof value.resolution === 'string' ? value.resolution : ''),
-    quality: model.normalizeQuality(typeof value.quality === 'string' ? value.quality : '') ?? '',
-    exportMode: ['canvas', 'custom', 'detail'].includes(String(value.exportMode)) ? value.exportMode as 'canvas' | 'custom' | 'detail' : 'detail',
-    exportScale: typeof value.exportScale === 'number' ? number(value.exportScale, 0.01, 64) : 1,
-    demoMode: value.demoMode === true,
+    // Autosaves of models without resolutions or qualities could lack these fields, because undefined vanished from them.
+    resolution: model.normalizeResolution(emptyText(value.resolution ?? '')),
+    quality: model.normalizeQuality(emptyText(value.quality ?? '')) ?? '',
+    exportMode: ['canvas', 'custom', 'detail'].includes(String(value.exportMode)) ? value.exportMode as PersistedEditorState['exportMode'] : fail(),
+    exportScale: number(value.exportScale, 0.01, 64),
+    demoMode: bool(value.demoMode),
   }
 }
 
@@ -263,7 +265,6 @@ function evidence(v: unknown): GenerationEvidence | undefined {
   if (!isRecord(v) || !Array.isArray(v.referenceAssetIds) || v.referenceAssetIds.length > 32) {
     return fail()
   }
-  const emptyText = (value: unknown) => (typeof value === 'string' && value.length <= 110_000 ? value : fail())
   return {
     id: text(v.id),
     capturedAt: number(v.capturedAt, 0, 9e15),

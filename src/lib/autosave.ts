@@ -1,7 +1,7 @@
 import type {PersistedEditorState, StoredProject} from './persistence.ts'
 import type {ProjectDocument} from './state.ts'
 
-import queryParameters, {explicitQueryKeys} from '#src/queryParameters.ts'
+import queryParameters, {customModelIds, explicitQueryKeys} from '#src/queryParameters.ts'
 
 import {setModel, setRatio} from './actions.ts'
 import {assets} from './assets.ts'
@@ -9,7 +9,7 @@ import {createThumbnailDataUrl, decodeImage} from './image.ts'
 import {getModel} from './models/index.ts'
 import {getErrorMessage, notify} from './notices.ts'
 import {isPersistenceAvailable, loadAssets, loadProject, saveProject} from './persistence.ts'
-import {collectDocumentAssetIds, parseEditor, parseProjectDocument} from './projectSchema.ts'
+import {collectDocumentAssetIds, isRecord, parseEditor, parseProjectDocument} from './projectSchema.ts'
 import {closestRatio, isRatioString, parseRatio} from './ratio.ts'
 import {editorStore, projectStore} from './state.ts'
 import {Store} from './store/index.ts'
@@ -111,7 +111,7 @@ async function restore() {
   if (raw === undefined) {
     return false
   }
-  if (raw.version !== 1) {
+  if (!isRecord(raw) || raw.version !== 1) {
     throw new Error('Unsupported autosave version.')
   }
   const document = parseProjectDocument(raw.document)
@@ -134,7 +134,11 @@ async function restore() {
     ...editor,
     prompt: explicitQueryKeys.has('prompt') ? queryParameters.prompt : editor.prompt,
   })
-  setModel(explicitQueryKeys.has('model') ? queryParameters.model : editor.modelId)
+  if (customModelIds.length) {
+    setModel(customModelIds.includes(editor.modelId) ? editor.modelId : customModelIds[0])
+  } else {
+    setModel(explicitQueryKeys.has('model') ? queryParameters.model : editor.modelId)
+  }
   if (explicitQueryKeys.has('ratio')) {
     const model = getModel(editorStore.state.modelId)
     const requested = isRatioString(queryParameters.ratio) ? queryParameters.ratio : '1:1'

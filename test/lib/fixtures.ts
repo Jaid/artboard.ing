@@ -3,7 +3,7 @@ import type {GenerationEvidence, Ingredient, Layer, ProjectDocument} from '#src/
 
 import {projectStore} from '#src/lib/state.ts'
 
-export const createRect = (width = 100, height = 100, x = 0, y = 0): Rect => ({
+export const createRect = (width: number, height: number, x = 0, y = 0): Rect => ({
   x,
   y,
   width,
@@ -20,7 +20,7 @@ export const createLayer = (id: string, extra: Partial<Layer> = {}): Layer => ({
   visible: true,
   area: 1,
   feather: 0,
-  rect: createRect(),
+  rect: createRect(100, 100),
   ...extra,
 })
 
@@ -39,7 +39,7 @@ export const createEvidence = (id: string, extra: Partial<GenerationEvidence> = 
   id,
   capturedAt: 0,
   compiledPrompt: 'a cat',
-  frame: createRect(),
+  frame: createRect(100, 100),
   modelId: 'google/gemini-nano-banana-2.1',
   outputAssetId: `out-${id}`,
   prompt: 'a cat',
@@ -50,10 +50,13 @@ export const createEvidence = (id: string, extra: Partial<GenerationEvidence> = 
   ...extra,
 })
 
+/** a document whose collection counter continues after its highest number, unless given */
+export const createDocument = ({layers = [], ingredients = [], nextIngredientIndex}: Partial<ProjectDocument> = {}): ProjectDocument => ({
+  layers,
+  ingredients,
+  nextIngredientIndex: nextIngredientIndex ?? Math.max(0, ...ingredients.map(ingredient => ingredient.index)) + 1,
+})
+
 export const resetProject = (document: Partial<ProjectDocument> = {}) => {
-  projectStore.reset({
-    layers: [],
-    ingredients: [],
-    ...document,
-  })
+  projectStore.reset(createDocument(document))
 }

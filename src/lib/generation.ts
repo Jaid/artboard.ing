@@ -4,6 +4,8 @@ import type {ImageModel} from './models/index.ts'
 import type {RatioString} from './ratio.ts'
 import type {GenerationEvidence, Job, Layer} from './state.ts'
 
+import queryParameters from '#src/queryParameters.ts'
+
 import {createIngredient, getLayer, getWorkspaceEpoch, withIngredient} from './actions.ts'
 import {apiKeyStore, getApiKey, hasApiKey, refreshApiStatus, requestApiKey} from './apiKey.ts'
 import {assets} from './assets.ts'
@@ -11,7 +13,7 @@ import {frameHasContent, getUpstreamCanvasSize, renderRegion} from './composite.
 import {setContentAwareAlignment, supportsContentAwareAlignment} from './contentAware.ts'
 import {createId} from './createId.ts'
 import {createDemoImage} from './demo.ts'
-import {emptyAreaThreshold, getGenerationRegion} from './generationRegion.ts'
+import {getGenerationRegion} from './generationRegion.ts'
 import {blobToDataUrl, encodeCanvas, prepareUpstreamImage} from './image.ts'
 import {parseImageResult, readBoundedBody, validateImageRequest} from './imageApi.ts'
 import {getModel} from './models/index.ts'
@@ -21,7 +23,7 @@ import {closestRatio} from './ratio.ts'
 import {getRevisions, withAddedRevision} from './revisions.ts'
 import {defaultGeneratedMask, editorStore, projectStore} from './state.ts'
 
-export const emptyCanvasColor = '#808080'
+export const emptyCanvasColor = queryParameters.transparent_color
 export type GenerationOverrides = {
   frame?: Rect
   prompt?: string
@@ -52,7 +54,6 @@ export function prepareGeneration(overrides: GenerationOverrides = {}) {
   const compiled = compilePrompt({
     text: editor.prompt,
     hasCanvasContent,
-    canvasHasEmptyAreas: Boolean(sample && sample.emptyFraction > emptyAreaThreshold),
     ingredientIndices: document.ingredients.map(item => item.index),
     maxReferences: model.maxReferences,
   })
@@ -100,13 +101,14 @@ type GenerationTask = {
 
 /** Checks credentials and concurrency; resolves false when the request must not be sent. */
 const ensureDispatchable = async (task: GenerationTask) => {
-  if (!apiKeyStore.state.checked && !task.demoMode) {
+  const needsKey = !task.demoMode && !queryParameters.ai_endpoint
+  if (!apiKeyStore.state.checked && needsKey) {
     await refreshApiStatus()
   }
   if (task.epoch !== getWorkspaceEpoch()) {
     return false
   }
-  if (!task.demoMode && !hasApiKey()) {
+  if (needsKey && !hasApiKey()) {
     requestApiKey()
     notify('info', 'Configure the local server or enter a browser-session key. Demo mode does not need a key.')
     return false
@@ -270,6 +272,16 @@ async function runGeneration(task: GenerationTask) {
     if (task.demoMode) {
       const source = task.canvas && 'canvas' in task.canvas ? task.canvas.canvas : canvasAsset?.bitmap
       blob = await createDemoImage(task.prompt, job.rect.width / job.rect.height, source, signal, task.variation)
+    } else if (queryParameters.ai_endpoint) {
+      // Loaded on demand so the AI SDK stays out of the main bundle. A browser-session key, if entered, is sent as bearer token.
+      const {generateWithAiEndpoint} = await import('./aiEndpoint.ts')
+      blob = await generateWithAiEndpoint({
+        endpoint: queryParameters.ai_endpoint,
+        key: getApiKey() || undefined,
+        model,
+        request,
+        signal,
+      })
     } else {
       const key = getApiKey()
       const useGateway = !key && apiKeyStore.state.serverConfigured

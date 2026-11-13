@@ -14,23 +14,18 @@ import {createInitialEditorState, defaultGeneratedMask, editorStore, projectStor
 import {createEvidence, createIngredient, createLayer, createRect, resetProject} from './lib/fixtures.ts'
 import testSassModulesPlugin from './lib/sassModulesPlugin.ts'
 
-Bun.plugin(testSassModulesPlugin)
-// Monaco cannot run in happy-dom, so the editor is replaced with its native textarea backend.
-mock.module('monacozen', () => {
-  const DummyEditor = ({value, onChange, placeholder}: {
-    onChange?: (value: string) => void
-    placeholder?: string
-    value?: string
-  }) => createElement('textarea', {
-    placeholder,
-    value,
-    onChange: (event: {currentTarget: {value: string}}) => onChange?.(event.currentTarget.value),
-  })
-  return {
-    default: DummyEditor,
-    DummyEditor,
-  }
+// Monaco cannot run in happy-dom, so the editor is replaced with a plain textarea.
+const TextareaEditor = ({value, onChange, placeholder}: {
+  onChange?: (value: string) => void
+  placeholder?: string
+  value?: string
+}) => createElement('textarea', {
+  placeholder,
+  value,
+  onChange: (event: {currentTarget: {value: string}}) => onChange?.(event.currentTarget.value),
 })
+await Bun.plugin(testSassModulesPlugin)
+await mock.module('monacozen', () => ({default: TextareaEditor}))
 async function renderComponent(componentSegment: string) {
   const {default: Component} = await import(`#src/components/${componentSegment}/index.tsx`) as {default: ComponentType}
   let result: ReturnType<typeof render> | undefined
@@ -40,6 +35,10 @@ async function renderComponent(componentSegment: string) {
   })
   return result!
 }
+const revision = (id: string) => ({
+  assetId: `out-${id}`,
+  evidence: createEvidence(id),
+})
 const menuItems = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
 afterEach(() => {
   cleanup()
@@ -103,10 +102,7 @@ describe('Ingredients', () => {
     expect(empty.container.textContent).toContain('collection')
   })
   test('shows numbered, draggable thumbnails without names', async () => {
-    act(() => resetProject({
-      ingredients: [3, 1, 2].map(index => createIngredient(index)),
-      nextIngredientIndex: 4,
-    }))
+    act(() => resetProject({ingredients: [3, 1, 2].map(index => createIngredient(index))}))
     const {container} = await renderComponent('Ingredients')
     const tiles = [...container.querySelectorAll<HTMLElement>('[data-testid="ingredient"]')]
     expect(tiles.map(tile => tile.dataset.index ?? '').toSorted((a, b) => a.localeCompare(b))).toEqual(['1', '2', '3'])
@@ -145,10 +141,7 @@ describe('Ingredients', () => {
 })
 describe('collection context menu', () => {
   test('offers Export and Delete for items and Export… for the frame view', async () => {
-    act(() => resetProject({
-      ingredients: [createIngredient(1)],
-      nextIngredientIndex: 2,
-    }))
+    act(() => resetProject({ingredients: [createIngredient(1)]}))
     const {container} = await renderComponent('Ingredients')
     const menu = await renderComponent('ContextMenu')
     const labels = () => menuItems(menu.container).map(item => item.textContent)
@@ -269,10 +262,6 @@ describe('LayersPanel', () => {
     expect(container.textContent).toContain('Its placement is locked.')
   })
   test('layer rows hide via the context menu, keep a show button for hidden layers and cycle revisions', async () => {
-    const revision = (id: string) => ({
-      assetId: `out-${id}`,
-      evidence: createEvidence(id),
-    })
     act(() => {
       resetProject({layers: [createLayer('base'), createLayer('gen', {
         assetId: 'out-b',
@@ -314,7 +303,7 @@ describe('LayersPanel', () => {
     expect(container.querySelectorAll('button[data-highlighted]')).toHaveLength(1)
     act(() => editorStore.set({hoveredCollectionIndex: null}))
     // Undo goes back to the previous revision.
-    act(() => projectStore.undo())
+    await act(() => projectStore.undo())
     expect(projectStore.state.layers[1].assetId).toBe('out-b')
     // The context menu offers Hide and Reroll.
     const menu = await renderComponent('ContextMenu')
@@ -383,12 +372,12 @@ describe('ZoomIndicator', () => {
     expect(indicator.hasAttribute('data-visible')).toBe(true)
     expect(indicator.textContent).toBe('125%')
     // A further change restarts the countdown.
-    act(() => jest.advanceTimersByTime(zoomIndicatorDuration / 2))
+    await act(() => jest.advanceTimersByTime(zoomIndicatorDuration / 2))
     setView({scale: 1.5})
-    act(() => jest.advanceTimersByTime(zoomIndicatorDuration - 1))
+    await act(() => jest.advanceTimersByTime(zoomIndicatorDuration - 1))
     expect(indicator.hasAttribute('data-visible')).toBe(true)
     expect(indicator.textContent).toBe('150%')
-    act(() => jest.advanceTimersByTime(1))
+    await act(() => jest.advanceTimersByTime(1))
     expect(indicator.hasAttribute('data-visible')).toBe(false)
   })
 })
@@ -397,7 +386,7 @@ describe('ExportDialog', () => {
     const {container} = await renderComponent('ExportDialog')
     const dialog = container.querySelector<HTMLDialogElement>('[data-testid="export-dialog"]')!
     expect(dialog.textContent).toBe('')
-    act(() => openExportDialog('frame'))
+    act(() => openExportDialog())
     expect(dialog.textContent).toContain('Export image')
     expect(container.querySelector<HTMLSelectElement>('[aria-label="Export region"]')?.value).toBe('frame')
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Close export"]')!.click())

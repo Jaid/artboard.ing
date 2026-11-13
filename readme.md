@@ -71,7 +71,7 @@ A reference can carry a description in parentheses. The description is written i
 Please add ![2](this witch) to the image
 ```
 
-is sent as “Please add this witch [Image 2] to the image”. Parentheses inside the description may be nested or escaped with a backslash. Something that looks like an image location – a URL, a path, a file name like `logo.png` or `<…>` – keeps its standard Markdown meaning and is never fetched.
+is sent as “Please add this witch [image 2] to the image”. Parentheses inside the description may be nested or escaped with a backslash. Something that looks like an image location – a URL, a path, a file name like `logo.png` or `<…>` – keeps its standard Markdown meaning and is never fetched.
 
 Prompts without an explicit reference work as well, for local edits or global restyling:
 
@@ -104,6 +104,8 @@ Hovering a tile shows a tooltip above it with its name, kind, size and usage. Wh
 Right-click a tile for **Rotation**, **Flip**, **Export** and **Delete**. The **Rotation** dropdown turns the image by 0°, 90° clockwise, 90° counterclockwise or 180°; the **Flip** dropdown mirrors it horizontally, vertically or not at all – mirroring both ways would just be a 180° turn. The image is turned first and then mirrored along the axes of the turned picture, so “Horizontal” always mirrors what you see left to right. Both choices are always relative to the original image, which the project keeps: going back to 0° without a flip shows the very original bytes again. The transformed pixels are stored losslessly, and every layer that shows the image – or keeps it as a revision – switches along with it as a single undo step. A quarter turn also turns those layers’ rectangles around their centers, so nothing is stretched; a layer’s own free rotation, mask and adjustments stay as they are. Prompt references, the drag-and-drop copies and **Export** all use the transformed image. A collection image downloads with its current bytes – the original ones unless it is rotated or flipped. Deleting removes it from the collection only; layers that show it keep their pixels. The frame view opens the raster export dialog described below, preset to the frame region.
 
 ### Masks and outpainting
+
+Where the frame has no visible artwork, generation inputs show a flat color, `#333` by default. `?transparent_color=` changes it and accepts any CSS color; write hex values without the “#” (`transparent_color=555`) or encode it as `%23555`, because a literal “#” starts the URL fragment.
 
 Area measures rectangular area: **25% means half the width and half the height**, before corner rounding. Mask position and image position are independent.
 
@@ -156,6 +158,16 @@ bytedance-seed/seedream-5-0-pro
 The two original shorthand IDs are accepted as aliases. The general chat catalog is not used to decide image-model availability. Account access, credits, prices and actual rendering quality remain provider/account properties, not guarantees made by a dropdown.
 
 The gateway validates model capabilities and embedded PNG/JPEG/WebP references, rebuilds an allowlisted request, limits concurrent requests to two and retains each slot until its response body finishes. It does not forward arbitrary provider options, fetch user-supplied remote image URLs, or reflect provider error bodies.
+
+### Own endpoint (CLIProxyAPI)
+
+`?ai_endpoint=http://127.0.0.1:8317/v1` sends generations straight from the browser to an OpenAI-compatible endpoint like [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), through the AI SDK’s `generateImage`, instead of OpenRouter. A bare origin gets `/v1` appended. No OpenRouter key is required; a browser-session key, if entered, is sent as bearer token. The endpoint must allow CORS. From an HTTPS page, a plain-HTTP endpoint works when it is a private IP literal like `127.0.0.1` or a `.local` host, which Chrome exempts from mixed-content blocking once local network access is allowed; plain-HTTP hostnames are blocked.
+
+The model ID is sent without its vendor prefix. Gemini models use `/chat/completions` with `image_config`; all others use `/images/generations`, or `/images/edits` once input images are attached. With CLIProxyAPI, this covers `google/gemini-3.1-flash-image`, `openai/gpt-image-2.5-sunburst` and `x-ai/grok-imagine-image-2.0`; the other catalog models are not served there.
+
+`model_id` adds any model ID to the picker. It can be repeated, like `?model_id=grok-imagine-image-2.0&model_id=gpt-image-2.5-sunburst`; the first one is selected unless the saved selection is one of them. For example `?ai_endpoint=http://127.0.0.1:8317&model_id=gpt-image-2.5-sunburst&ratios=1,3/4,4/3,16/9,9/16`. The ID is sent exactly as given. If it matches a catalog model, with or without vendor prefix, that model’s resolutions, qualities and reference limit apply; otherwise there are none and up to 16 references are allowed. `ratios` sets its frame ratios as a comma-separated list of `16/9`, `16:9` or a bare `1` for 1:1; without it, the ratios verified for the endpoint, the matching catalog model’s ratios or 1:1, 3:4, 4:3, 9:16 and 16:9 are used.
+
+While `ai_endpoint` is set, `src/lib/models/endpointRatios.ts` replaces the catalog ratios of models matching its minimatch patterns with the ratios the endpoint actually honors. Through CLIProxyAPI, Grok Imagine 2.0 answers 9:19.5, 19.5:9, 1:2 and 2:1 with a square, so those are left out.
 
 ## Keyboard controls
 

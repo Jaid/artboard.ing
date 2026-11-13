@@ -41,22 +41,22 @@ describe('compiling', () => {
     const compiled = compile('The hand should hold a cup of coffee with ![2] printed on it')
     expect(compiled.errors).toEqual([])
     expect(compiled.sources).toEqual([canvas, ingredient(2)])
-    expect(compiled.text).toContain('with [Image 2] printed on it')
+    expect(compiled.text).toContain('with [image 2] printed on it')
   })
   test('rewrites references to image positions', () => {
-    expect(compile('Please put the face of ![1] onto the head of ![0]').text).toContain('Please put the face of [Image 2] onto the head of [Image 1]')
+    expect(compile('Please put the face of ![1] onto the head of ![0]').text).toContain('Please put the face of [image 2] onto the head of [image 1]')
   })
   test('attaches only referenced ingredients, once each, in first-mention order', () => {
     expect(compile('![7] ![2] ![7]').sources).toEqual([canvas, ingredient(7), ingredient(2)])
     const compiled = compile('![2] next to ![2] and ![1]', false)
     expect(compiled.sources).toEqual([ingredient(2), ingredient(1)])
-    expect(compiled.text).toContain('[Image 1] next to [Image 1] and [Image 2]')
+    expect(compiled.text).toContain('[image 1] next to [image 1] and [image 2]')
   })
   test('writes descriptions directly before the image', () => {
     const compiled = compile('Please add ![2](this witch) to the image')
     expect(compiled.errors).toEqual([])
-    expect(compiled.text).toContain('Please add this witch [Image 2] to the image')
-    expect(compile('Show ![1]() please', false).text).toContain('Show [Image 1] please')
+    expect(compiled.text).toContain('Please add this witch [image 2] to the image')
+    expect(compile('Show ![1]() please', false).text).toContain('Show [image 1] please')
   })
   test('passes plain text on an empty frame through unchanged', () => {
     expect(compile('a lighthouse', false)).toEqual({
@@ -65,8 +65,9 @@ describe('compiling', () => {
       text: 'a lighthouse',
     })
   })
-  test('mentions empty canvas areas', () => {
-    expect(compile('extend', true, {canvasHasEmptyAreas: true}).text).toContain('gray')
+  test('sends the prompt without any wrapper', () => {
+    expect(compile('Change the ice cream color').text).toBe('Change the ice cream color')
+    expect(compile('Put ![1] onto ![0]').text).toBe('Put [image 2] onto [image 1]')
   })
   test('keeps escaped references literal', () => {
     expect(compile(String.raw`literal \![2]`).sources).toEqual([canvas])

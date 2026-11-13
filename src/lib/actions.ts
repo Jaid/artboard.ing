@@ -15,10 +15,16 @@ import {createThumbnailDataUrl, looksLikeImage, normalizeImportedImage} from './
 import {getModel} from './models/index.ts'
 import {getErrorMessage, notify} from './notices.ts'
 import {closestRatio, parseRatio} from './ratio.ts'
-import {createEmptyDocument, createInitialEditorState, defaultImportedMask, editorStore, projectStore} from './state.ts'
+import {createEmptyDocument, createFrame, createInitialEditorState, defaultImportedMask, editorStore, projectStore} from './state.ts'
 import {fitViewToRect} from './viewport.ts'
 
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || name
+let workspaceEpoch = 0
+/** changes whenever the workspace is replaced, so pending work can tell that its results no longer belong */
+export const getWorkspaceEpoch = () => workspaceEpoch
+export const advanceWorkspaceEpoch = () => {
+  workspaceEpoch++
+}
 
 export const getLayer = (id: string | null) => (id ? projectStore.state.layers.find(layer => layer.id === id) : undefined)
 
@@ -135,7 +141,7 @@ export const updateLayer = (id: string, patch: LayerPatch, options: CommitOption
     return
   }
   for (const key of ['area', 'feather', 'opacity', 'roundness'] as const) {
-    if (!(patch[key] !== undefined)) {
+    if (patch[key] === undefined) {
       continue
     }
     if (!Number.isFinite(patch[key])) {
@@ -144,7 +150,7 @@ export const updateLayer = (id: string, patch: LayerPatch, options: CommitOption
     patch[key] = Math.min(1, Math.max(0, patch[key]))
   }
   for (const key of ['offsetX', 'offsetY'] as const) {
-    if (!(patch[key] !== undefined)) {
+    if (patch[key] === undefined) {
       continue
     }
     if (!Number.isFinite(patch[key])) {
@@ -291,15 +297,16 @@ export const importLayers = async (files: ReadonlyArray<File>, worldPoint?: Poin
 
 // ingredients
 
+/** numbers handed out to entries that are still being prepared, so concurrent imports never share one */
 let ingredientSequence = 1
-export const getNextIngredientIndex = (ingredients: ReadonlyArray<Ingredient>) => {
-  ingredientSequence = Math.max(ingredientSequence, projectStore.state.nextIngredientIndex ?? 1, Math.max(0, ...ingredients.map(ingredient => ingredient.index)) + 1)
+const getNextIngredientIndex = () => {
+  ingredientSequence = Math.max(ingredientSequence, projectStore.state.nextIngredientIndex)
   return ingredientSequence++
 }
 
 /** Builds a numbered collection entry. The number is reserved immediately, so it is never handed out twice. */
-export const createIngredient = async (asset: Asset, name: string, kind: NonNullable<Ingredient['kind']>): Promise<Ingredient> => {
-  const index = getNextIngredientIndex(projectStore.state.ingredients)
+export async function createIngredient(asset: Asset, name: string, kind: Ingredient['kind']): Promise<Ingredient> {
+  const index = getNextIngredientIndex()
   return {
     id: createId(),
     index,
@@ -312,13 +319,13 @@ export const createIngredient = async (asset: Asset, name: string, kind: NonNull
 }
 
 /** Adds the entry unless the collection already holds its image. */
-export const withIngredient = (document: ProjectDocument, ingredient?: Ingredient): ProjectDocument => {
+export function withIngredient(document: ProjectDocument, ingredient?: Ingredient): ProjectDocument {
   if (!ingredient || document.ingredients.some(item => item.assetId === ingredient.assetId || item.index === ingredient.index)) {
     return document
   }
   return {
     ...document,
-    nextIngredientIndex: Math.max(document.nextIngredientIndex ?? 1, ingredient.index + 1),
+    nextIngredientIndex: Math.max(document.nextIngredientIndex, ingredient.index + 1),
     ingredients: [...document.ingredients, ingredient],
   }
 }
@@ -365,12 +372,6 @@ export const undo = () => projectStore.undo()
 
 export const redo = () => projectStore.redo()
 
-let workspaceEpoch = 0
-/** changes whenever the workspace is replaced, so pending work can tell that its results no longer belong */
-export const getWorkspaceEpoch = () => workspaceEpoch
-export const advanceWorkspaceEpoch = () => {
-  workspaceEpoch++
-}
 export const resetProject = () => {
   advanceWorkspaceEpoch()
   ingredientSequence = 1
@@ -388,10 +389,10 @@ export const resetProject = () => {
     quality: state.quality,
     ratio: state.ratio,
     frameEnabled: state.frameEnabled,
-    frame: rectFromCenter({
+    frame: createFrame(state.ratio, {
       x: 512,
       y: 512,
-    }, sizeFromArea(1024 * 1024, parseRatio(state.ratio))),
+    }),
     sessionCost: state.sessionCost,
   }))
   fitViewToFrame()

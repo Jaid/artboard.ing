@@ -1,9 +1,12 @@
 import type {RatioString} from '../ratio.ts'
 
+import queryParameters, {customModelIds} from '#src/queryParameters.ts'
+
 import {isRatioString} from '../ratio.ts'
 import {Store} from '../store/index.ts'
 import {ImageModel} from './base/ImageModel.ts'
 import snapshot from './catalog.json'
+import {findEndpointRatios} from './endpointRatios.ts'
 
 export type Capability = {
   max: number
@@ -59,7 +62,7 @@ export function parseImageCatalog(value: unknown): Array<ImageCatalogEntry> {
         supported_parameters[key] = {type: 'boolean'}
       }
     }
-    const ratio = supported_parameters.aspect_ratio
+    const ratio = supported_parameters.aspect_ratio as Capability | undefined
     if (ratio?.type !== 'enum' || !ratio.values.some(isRatioString)) {
       continue
     }
@@ -91,28 +94,66 @@ class CatalogImageModel extends ImageModel {
     super()
   }
   get aspectRatios(): ReadonlyArray<RatioString> {
-    return values(this.id, 'aspect_ratio').filter(isRatioString)
+    const endpoint = queryParameters.ai_endpoint ? findEndpointRatios(this.shortId) : undefined
+    return endpoint ?? values(this.id, 'aspect_ratio').filter(isRatioString)
   }
   get maxReferences() {
     const cap = catalog.get(this.id)?.supported_parameters.input_references
     return cap?.type === 'range' ? Math.max(0, Math.floor(cap.max)) : 0
   }
-  override get note() {
+  get note() {
     return `${catalogStore.state.source === 'live' ? 'Live Image API' : 'Bundled capability snapshot'} · up to ${this.maxReferences} reference images`
   }
-  override get qualities() {
+  get qualities() {
     return values(this.id, 'quality')
   }
-  override get resolutions() {
+  get resolutions() {
     return values(this.id, 'resolution')
   }
   get vendor() {
     return vendors[this.id.split('/')[0]] ?? this.id.split('/')[0]
   }
 }
-export const models: ReadonlyArray<ImageModel> = requestedModelIds.map((id, i) => new CatalogImageModel(id, titles[i]))
+const catalogModels: ReadonlyArray<ImageModel> = requestedModelIds.map((id, i) => new CatalogImageModel(id, titles[i]))
+const defaultCustomRatios: ReadonlyArray<RatioString> = ['1:1', '3:4', '4:3', '9:16', '16:9']
+/** a model given by a model_id query parameter; capabilities come from a catalog model with the same ID, if there is one */
+class CustomImageModel extends ImageModel {
+  readonly vendor = 'Custom'
+  constructor(readonly id: string, readonly base?: ImageModel) {
+    super()
+  }
+  get aspectRatios() {
+    if (queryParameters.ratios.length) {
+      return queryParameters.ratios
+    }
+    const endpoint = queryParameters.ai_endpoint ? findEndpointRatios(this.id) : undefined
+    return endpoint ?? this.base?.aspectRatios ?? defaultCustomRatios
+  }
+  get maxReferences() {
+    return this.base?.maxReferences ?? 16
+  }
+  get note() {
+    return `Custom model from model_id · up to ${this.maxReferences} reference images`
+  }
+  get qualities() {
+    return this.base?.qualities ?? []
+  }
+  get resolutions() {
+    return this.base?.resolutions ?? []
+  }
+  /** sent as is, even if it contains a slash */
+  override get shortId() {
+    return this.id
+  }
+  get title() {
+    return this.id
+  }
+}
+export const customModels: ReadonlyArray<ImageModel> = customModelIds.map(id => new CustomImageModel(id, catalogModels.find(model => model.id === id || model.shortId === id)))
+/** custom models come first, so they win over a catalog model whose short ID they share */
+export const models: ReadonlyArray<ImageModel> = [...customModels, ...catalogModels]
 export const defaultModelId = 'google/gemini-nano-banana-2.1'
-export const defaultModel = models.find(model => model.id === defaultModelId) ?? models[0]
+export const defaultModel = customModels.at(0) ?? models.find(model => model.id === defaultModelId) ?? models[0]
 export const findModel = (id: unknown) => (typeof id === 'string' ? models.find(model => model.id === id.trim() || model.shortId === id.trim()) : undefined)
 export const getModel = (id: unknown): ImageModel => findModel(id) ?? defaultModel
 export function applyImageCatalog(value: unknown) {
@@ -122,7 +163,7 @@ export function applyImageCatalog(value: unknown) {
   catalogStore.set(state => ({
     source: 'live',
     updatedAt: (new Date).toISOString(),
-    error: entries.length < models.length ? 'Some models are using bundled capabilities.' : '',
+    error: entries.length < catalogModels.length ? 'Some models are using bundled capabilities.' : '',
     revision: state.revision + 1,
   }))
 }

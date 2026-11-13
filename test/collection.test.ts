@@ -1,20 +1,18 @@
-import type {ProjectDocument} from '#src/lib/state.ts'
-
 import {describe, expect, test} from 'bun:test'
 
 import {withIngredient} from '#src/lib/actions.ts'
 import {getIngredientFileName} from '#src/lib/exporting.ts'
 import {getThumbnailFit, maxThumbnailAspect, minThumbnailAspect} from '#src/lib/thumbnailFit.ts'
 
-import {createIngredient} from './lib/fixtures.ts'
+import {createDocument, createIngredient} from './lib/fixtures.ts'
 
+const fileName = (index: number, name: string, mediaType: string) => getIngredientFileName({
+  index,
+  name,
+}, mediaType)
 describe('collection numbering', () => {
   test('adding an entry advances the counter and never duplicates an image', () => {
-    const document: ProjectDocument = {
-      layers: [],
-      ingredients: [],
-      nextIngredientIndex: 1,
-    }
+    const document = createDocument()
     const ingredient = createIngredient(4)
     const added = withIngredient(document, ingredient)
     expect(added.ingredients).toHaveLength(1)
@@ -50,10 +48,6 @@ describe('collection thumbnails', () => {
 })
 describe('collection export', () => {
   test('file names follow the item name and its original format', () => {
-    const fileName = (index: number, name: string, mediaType: string) => getIngredientFileName({
-      index,
-      name,
-    }, mediaType)
     expect(fileName(3, 'red', 'image/png')).toBe('red.png')
     expect(fileName(3, 'a/b: "c"?', 'image/jpeg')).toBe('a b c.jpg')
     expect(fileName(4, '…', 'image/webp')).toBe('….webp')

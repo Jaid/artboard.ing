@@ -5,7 +5,7 @@ import type {MaskSettings} from './mask.ts'
 import type {Flip, Rotation} from './orientation.ts'
 import type {RatioString} from './ratio.ts'
 
-import queryParameters from '#src/queryParameters.ts'
+import queryParameters, {customModelIds} from '#src/queryParameters.ts'
 
 import {rectFromCenter, sizeFromArea} from './geometry.ts'
 import {getModel} from './models/index.ts'
@@ -100,7 +100,8 @@ export type ProjectDocument = {
   ingredients: ReadonlyArray<Ingredient>
   /** bottom to top; the first layer is the background layer */
   layers: ReadonlyArray<Layer>
-  nextIngredientIndex?: number
+  /** the number the next collection entry gets; numbers are never reused */
+  nextIngredientIndex: number
 }
 
 export type View = {
@@ -164,7 +165,7 @@ export const createFrame = (ratio: RatioString, center = {
   y: 0,
 }, area = defaultFrameArea): Rect => rectFromCenter(center, sizeFromArea(area, parseRatio(ratio)))
 
-const initialModel = getModel(queryParameters.model)
+const initialModel = getModel(customModelIds.at(0) ?? queryParameters.model)
 const resolveInitialRatio = (): RatioString => {
   const requested = queryParameters.ratio
   if (isRatioString(requested) && initialModel.supportsRatio(requested)) {

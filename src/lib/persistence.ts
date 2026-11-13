@@ -45,7 +45,11 @@ const openDatabase = () => {
   return pending
 }
 export const isPersistenceAvailable = () => typeof indexedDB !== 'undefined'
-export const loadProject = async () => (await openDatabase()).get('state', 'project')
+/** Stored data is untrusted until it has been parsed. */
+export const loadProject = async (): Promise<unknown> => {
+  const db = await openDatabase()
+  return db.get('state', 'project')
+}
 export async function loadAssets(ids: Iterable<string>) {
   const db = await openDatabase()
   const transaction = db.transaction('assets', 'readonly')

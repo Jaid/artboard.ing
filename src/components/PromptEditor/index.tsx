@@ -2,7 +2,7 @@ import type {Ingredient} from '#src/lib/state.ts'
 import type {MonacoApi, MonacoOptions} from 'monacozen'
 
 import Monacozen from 'monacozen'
-import {useEffect, useRef} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
 import {setPrompt} from '#src/lib/actions.ts'
 import {getDroppedReference, isReferenceDrag} from '#src/lib/collectionDrag.ts'
@@ -44,6 +44,16 @@ const options: MonacoOptions = {
     verticalScrollbarSize: 8,
     useShadows: false,
   },
+}
+let overflowWidgetsDomNode: HTMLDivElement | undefined
+/** The panel’s backdrop-filter makes it the containing block of fixed elements, which would clip hovers and suggestions to the left column, so they live in the body instead. */
+const getOverflowWidgetsDomNode = () => {
+  if (!overflowWidgetsDomNode) {
+    overflowWidgetsDomNode = document.createElement('div')
+    overflowWidgetsDomNode.className = `monaco-editor ${css.overflowWidgets}`
+    document.body.append(overflowWidgetsDomNode)
+  }
+  return overflowWidgetsDomNode
 }
 const getIngredients = () => projectStore.state.ingredients
 const findIngredient = (index: number): Ingredient | undefined => getIngredients().find(ingredient => ingredient.index === index)
@@ -135,6 +145,10 @@ const PromptEditor = () => {
   const monacoRef = useRef<MonacoApi | null>(null)
   const cleanupRef = useRef<(() => void) | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [monacoOptions] = useState<MonacoOptions>(() => ({
+    ...options,
+    overflowWidgetsDomNode: getOverflowWidgetsDomNode(),
+  }))
   // Collection tiles, the frame view included, drop as references at the pointer. Capturing keeps Monaco’s own text drop and the file dropzone out of it.
   useEffect(() => {
     const container = containerRef.current
@@ -195,15 +209,14 @@ const PromptEditor = () => {
       return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column)
     }
     const decorations = findReferences(model.getValue()).flatMap(reference => {
-      const valid = reference.index === 0 || available.has(reference.index)
-      const className = reference.index === 0 ? css.canvasReference : valid ? css.reference : css.missingReference
+      const className = reference.index === 0 ? css.canvasReference : (available.has(reference.index) ? css.reference : css.missingReference)
       // References to the hovered collection tile light up.
       const token = {
         range: range(reference.start, reference.referenceEnd),
         options: {inlineClassName: reference.index === hovered ? `${className} ${css.hoveredReference}` : className},
       }
       if (reference.end === reference.referenceEnd) {
-        return [token]
+        return token
       }
       return [token, {
         range: range(reference.referenceEnd, reference.end),
@@ -272,7 +285,7 @@ const PromptEditor = () => {
       aria-label='Prompt'
       dark={dark}
       language='markdown'
-      monaco={options}
+      monaco={monacoOptions}
       placeholder='Describe what should happen inside the frame…'
       onMount={handleMount}
     />

@@ -3,6 +3,7 @@ import {describe, expect, test} from 'bun:test'
 import {parseImageResult, readBoundedBody, validateImageRequest} from '#src/lib/imageApi.ts'
 import catalog from '#src/lib/models/catalog.json'
 import {defaultModel, findModel, getModel, models, parseImageCatalog} from '#src/lib/models/index.ts'
+import {findEndpointRatios} from '#src/lib/models/endpointRatios.ts'
 import {isRatioString} from '#src/lib/ratio.ts'
 
 const request = {
@@ -16,6 +17,12 @@ const request = {
   }],
 }
 describe('models', () => {
+  test('GPT Image 2.6 Sunburst has explicit endpoint ratios with either ID form', () => {
+    const ratios = ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '4:5', '5:4', '1:2', '2:1', '9:21', '21:9', '1:3', '3:1'] as const
+    expect(findEndpointRatios('gpt-image-2.6-sunburst')).toEqual(ratios)
+    expect(findEndpointRatios('openai/gpt-image-2.6-sunburst')).toEqual(ratios)
+    expect(findEndpointRatios('gpt-image-2.6-flare')).toBeUndefined()
+  })
   test('all nine models come from the dedicated image catalog', () => {
     expect(models.map(model => model.id)).toEqual([
       'google/gemini-3.1-flash-lite-image',

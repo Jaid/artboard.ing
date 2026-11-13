@@ -42,6 +42,7 @@ const run = (action: () => unknown) => {
   closeContextMenu()
   Promise.try(action).catch((error: unknown) => notify('error', getErrorMessage(error)))
 }
+const button = (label: string, action: () => unknown, disabled = false) => <button disabled={disabled} role='menuitem' type='button' onClick={() => run(action)}>{label}</button>
 export default function ContextMenu() {
   const menu = useStore(contextMenuStore)
   const ref = useRef<HTMLDivElement>(null)
@@ -79,7 +80,6 @@ export default function ContextMenu() {
   if (!menu.open || stale) {
     return null
   }
-  const button = (label: string, action: () => unknown, disabled = false) => <button disabled={disabled} role='menuitem' type='button' onClick={() => run(action)}>{label}</button>
   const estimatedHeight = collection ? 220 : (layer ? 650 : 420)
   return <div
     className={css.menu} aria-label={collection ? 'Collection context menu' : 'Canvas context menu'} data-overlay-control role='menu' style={{
@@ -108,7 +108,7 @@ export default function ContextMenu() {
         <hr />
         {button('Export', () => exportIngredient(collectionItem))}
         {button('Delete', () => removeIngredient(collectionItem.id))}
-      </> : button('Export…', () => openExportDialog('frame'), !hasArtwork)}
+      </> : button('Export…', () => openExportDialog(), !hasArtwork)}
     </>}
     {!collection && <>
       {layer && <>

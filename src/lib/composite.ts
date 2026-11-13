@@ -191,7 +191,7 @@ function getSeamAwareMask(layers: ReadonlyArray<Layer>, index: number, resolutio
   const uncovered = new Uint8Array(field.depth.length)
   let seams = false
   for (const [i, depth] of field.depth.entries()) {
-    if (!(!Number.isNaN(depth) && data[i * 4 + 3] < 128)) {
+    if (Number.isNaN(depth) || data[i * 4 + 3] >= 128) {
       continue
     }
     uncovered[i] = 1

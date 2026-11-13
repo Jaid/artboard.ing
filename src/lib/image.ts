@@ -40,6 +40,30 @@ export const getMediaType = (file: Blob & {name?: string}) => {
 
 export const looksLikeImage = (file: Blob & {name?: string}) => getMediaType(file).startsWith('image/')
 
+export const MAX_EDGE = 16_384
+export const MAX_PIXELS = 64_000_000
+export function validateDimensions(width: number, height: number) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > MAX_EDGE || height > MAX_EDGE || width * height > MAX_PIXELS) {
+    throw new Error('This image exceeds the 64-megapixel or 16,384-pixel edge limit. Choose a smaller export scale or frame.')
+  }
+}
+export const createCanvas = (width: number, height: number) => {
+  width = Math.max(1, Math.round(width))
+  height = Math.max(1, Math.round(height))
+  validateDimensions(width, height)
+  return new OffscreenCanvas(width, height)
+}
+
+export const getContext = (canvas: OffscreenCanvas) => {
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('2D canvas context is unavailable')
+  }
+  context.imageSmoothingEnabled = true
+  context.imageSmoothingQuality = 'high'
+  return context
+}
+
 const fallbackVectorSize = 1024
 const decodeWithElement = async (blob: Blob): Promise<DecodedImage> => {
   const url = URL.createObjectURL(blob)
@@ -114,30 +138,6 @@ export const decodeImage = async (blob: Blob): Promise<DecodedImage> => {
   } catch {
     throw new Error(`This browser cannot decode ${blob.type || 'this file type'}`)
   }
-}
-
-export const MAX_EDGE = 16_384
-export const MAX_PIXELS = 64_000_000
-export function validateDimensions(width: number, height: number) {
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > MAX_EDGE || height > MAX_EDGE || width * height > MAX_PIXELS) {
-    throw new Error('This image exceeds the 64-megapixel or 16,384-pixel edge limit. Choose a smaller export scale or frame.')
-  }
-}
-export const createCanvas = (width: number, height: number) => {
-  width = Math.max(1, Math.round(width))
-  height = Math.max(1, Math.round(height))
-  validateDimensions(width, height)
-  return new OffscreenCanvas(width, height)
-}
-
-export const getContext = (canvas: OffscreenCanvas) => {
-  const context = canvas.getContext('2d')
-  if (!context) {
-    throw new Error('2D canvas context is unavailable')
-  }
-  context.imageSmoothingEnabled = true
-  context.imageSmoothingQuality = 'high'
-  return context
 }
 
 export const encodeCanvas = (canvas: OffscreenCanvas, format: ExportFormat = 'png', quality?: number) => canvas.convertToBlob({
@@ -235,7 +235,7 @@ export const createThumbnailDataUrl = async (bitmap: ImageBitmap, maxSide = 192)
   return blobToDataUrl(await encodeCanvas(canvas, 'webp', 0.85))
 }
 
-/** Sol's worker decoder, adapted to the shared immutable-asset pipeline. */
+/** decodes JPEG XL in a worker, since browsers cannot decode it natively */
 async function decodeJxl(buffer: ArrayBuffer): Promise<ImageData> {
   const worker = new Worker(new URL('codecs/jxl.worker.ts', import.meta.url), {type: 'module'})
   try {

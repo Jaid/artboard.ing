@@ -82,5 +82,5 @@ export const forgetAdjustedImages = (sourceKey: string) => {
   }
 }
 
-export type {AdjustmentKey, Adjustments} from './color.ts'
-export {adjustColor, adjustmentKeys, getAdjustmentParameters, isNeutral, normalizeAdjustments, toGamma} from './color.ts'
+export type {Adjustments} from './color.ts'
+export {adjustmentKeys, normalizeAdjustments, toGamma} from './color.ts'

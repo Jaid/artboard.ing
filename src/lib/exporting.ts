@@ -122,7 +122,7 @@ export async function exportImage(scope: ExportScope, format: ExportFormat, poli
 }
 export async function copyImage(scope: ExportScope, policy?: ExportPolicy) {
   try {
-    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+    if (!isSecureContext) {
       throw new Error('Clipboard images require HTTPS or localhost. Use PNG download on this origin.')
     }
     await navigator.clipboard.write([new ClipboardItem({'image/png': renderExport(scope, 'png', undefined, policy)})])

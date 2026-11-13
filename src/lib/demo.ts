@@ -71,20 +71,12 @@ export async function createDemoImage(prompt: string, aspect = 1, source?: Image
     ctx.fillRect(w * 0.305, h * 0.66, w * 0.017, h * 0.024)
   }
   await new Promise<void>((resolve, reject) => {
-    const done = () => {
-      signal?.removeEventListener('abort', abort)
-      resolve()
-    }
-    const timer = setTimeout(done, 250)
-    const abort = () => {
+    signal?.throwIfAborted()
+    const timer = setTimeout(resolve, 250)
+    signal?.addEventListener('abort', () => {
       clearTimeout(timer)
-      reject(new DOMException('Canceled', 'AbortError'))
-    }
-    if (signal?.aborted) {
-      abort()
-    } else {
-      signal?.addEventListener('abort', abort, {once: true})
-    }
+      reject(signal.reason as Error)
+    }, {once: true})
   })
-  return encodeCanvas(canvas, 'png')
+  return encodeCanvas(canvas)
 }

@@ -14,6 +14,5 @@ export const featherMethods: Record<FeatherMethodId, FeatherMethod> = {
 /** the feather method selected with ?feather_method, or the default */
 export const getFeatherMethod = (id: FeatherMethodId = queryParameters.feather_method) => featherMethods[id]
 
-export type {FeatherCore, FeatherShape} from './base/FeatherMethod.ts'
-export {FeatherMethod} from './base/FeatherMethod.ts'
-export {defaultFeatherMethodId, type FeatherMethodId, featherMethodIds, isFeatherMethodId, parseFeatherMethodId} from './featherMethodIds.ts'
+export type {FeatherMethod, FeatherShape} from './base/FeatherMethod.ts'
+export {parseFeatherMethodId} from './featherMethodIds.ts'

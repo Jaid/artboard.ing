@@ -1,7 +1,7 @@
 import type {RatioString} from '#src/lib/ratio.ts'
 
 import clsx from 'clsx'
-import {useId} from 'react'
+import {useId, useRef} from 'react'
 
 import {setRatio} from '#src/lib/actions.ts'
 import {getModel} from '#src/lib/models/index.ts'
@@ -36,19 +36,20 @@ const RatioShape = ({ratio, size = 16}: {
 const RatioPicker = () => {
   const id = useId()
   const popoverId = `ratio-${id}`
+  const popover = useRef<HTMLDivElement>(null)
   const ratio = useStore(editorStore, state => state.ratio)
   const modelId = useStore(editorStore, state => state.modelId)
   const ratios = sortRatios(getModel(modelId).aspectRatios)
   const choose = (value: RatioString) => {
     setRatio(value)
-    document.getElementById(popoverId)?.hidePopover()
+    popover.current?.hidePopover()
   }
   return <>
     <button className={css.trigger} popoverTarget={popoverId} style={{anchorName: `--${popoverId}`}} title='Frame aspect ratio' type='button'>
       <RatioShape ratio={ratio} />
       <span>{ratio}</span>
     </button>
-    <div id={popoverId} className={css.popover} popover='auto' style={{positionAnchor: `--${popoverId}`}}>
+    <div id={popoverId} className={css.popover} popover='auto' style={{positionAnchor: `--${popoverId}`}} ref={popover}>
       <div className={css.grid}>
         {ratios.map(entry => <button key={entry} className={clsx(css.option, entry === ratio && css.selected)} aria-pressed={entry === ratio} type='button' onClick={() => choose(entry)}>
           <RatioShape ratio={entry} size={22} />

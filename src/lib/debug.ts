@@ -32,7 +32,7 @@ export const debugHandle = {
       text: compiled.text,
       sources: compiled.sources,
       errors: compiled.errors,
-      canvas: rendered ? await encodeCanvas(rendered.canvas, 'png') : undefined,
+      canvas: rendered ? await encodeCanvas(rendered.canvas) : undefined,
       emptyFraction: rendered?.emptyFraction,
     }
   },

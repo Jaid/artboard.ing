@@ -42,10 +42,10 @@ export const getRevisions = (layer: Layer): ReadonlyArray<GenerationRevision> =>
 /** the layer showing another of its revisions; the previously shown one is written back into the list first */
 export const withRevision = (layer: Layer, index: number): Layer => {
   const revisions = getRevisions(layer)
-  const target = revisions[index]
-  if (!target || revisions.length < 2) {
+  if (revisions.length < 2 || index < 0 || index >= revisions.length) {
     return layer
   }
+  const target = revisions[index]
   const next: Layer = {
     ...layer,
     assetId: target.assetId,

@@ -47,7 +47,7 @@ export async function captureCanvasSnapshot() {
     size,
     measureEmpty: false,
   })
-  const asset = await assets.add(await encodeCanvas(canvas, 'png'))
+  const asset = await assets.add(await encodeCanvas(canvas))
   if (epoch !== getWorkspaceEpoch()) {
     throw new Error('The workspace changed while the snapshot was being prepared.')
   }

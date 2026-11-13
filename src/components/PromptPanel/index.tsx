@@ -21,6 +21,21 @@ import css from './style.module.sass'
 const vendors = [...new Set(models.map(model => model.vendor))]
 /** the two longest labels reserve the width of the generate button, so switching modes never shifts the layout */
 const [widestTitle, secondWidestTitle] = Object.values(generationModeTitles).toSorted((a, b) => b.length - a.length)
+const getSaveState = (storage: typeof persistenceStore.state) => {
+  if (storage.paused) {
+    return 'recovery paused'
+  }
+  if (!storage.hydrated) {
+    return 'opening…'
+  }
+  if (storage.saving) {
+    return 'saving…'
+  }
+  if (storage.error) {
+    return 'save failed'
+  }
+  return storage.lastSavedAt ? 'saved locally' : 'local workspace'
+}
 export default function PromptPanel() {
   const editor = useStore(editorStore)
   const storage = useStore(persistenceStore)
@@ -30,7 +45,7 @@ export default function PromptPanel() {
   const charged = (value: boolean) => editorStore.set({generationHover: value})
   const mode = useGenerationMode()
   return <div className={css.panel} data-drop-target='editor'>
-    <header className={css.header}><h1 className={css.title}><span className={css.logo} aria-hidden />artboard.ing</h1><ProjectBar /><span className={clsx(css.saveState, storage.error && css.saveError)} title={storage.error || 'Images and project state are saved in this browser'}>{storage.paused ? 'recovery paused' : !storage.hydrated ? 'opening…' : storage.saving ? 'saving…' : storage.error ? 'save failed' : storage.lastSavedAt ? 'saved locally' : 'local workspace'}</span><ApiKeySettings /></header>
+    <header className={css.header}><h1 className={css.title}><span className={css.logo} aria-hidden />artboard.ing</h1><ProjectBar /><span className={clsx(css.saveState, storage.error && css.saveError)} title={storage.error || 'Images and project state are saved in this browser'}>{getSaveState(storage)}</span><ApiKeySettings /></header>
     <PromptEditor />
     <Ingredients />
     <footer className={css.footer}>

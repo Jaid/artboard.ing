@@ -1,3 +1,5 @@
+import type {EditorState} from './state.ts'
+
 import {fitViewToContent, fitViewToFrame, isLayerTransformable, redo, removeLayer, selectLayer, setFrame, undo, updateLayer} from './actions.ts'
 import {persistenceStore} from './autosave.ts'
 import {routeDroppedFiles} from './drop.ts'
@@ -6,6 +8,17 @@ import {editorStore, projectStore} from './state.ts'
 import {zoomBy} from './viewport.ts'
 
 const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(?:INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || Boolean(target.closest('.monaco-editor')))
+const toolKeys: Record<string, EditorState['tool']> = {
+  v: 'frame',
+  i: 'image',
+  m: 'mask',
+}
+const arrowSteps: Record<string, [x: number, y: number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+}
 const handleKeyDown = (event: KeyboardEvent) => {
   if (!persistenceStore.state.hydrated) {
     return
@@ -42,12 +55,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
   const state = editorStore.state
   const layer = projectStore.state.layers.find(item => item.id === state.selectedLayerId)
-  if (['i', 'm', 'v'].includes(key)) {
+  if (Object.hasOwn(toolKeys, key)) {
     if (key === 'm' && (!layer || projectStore.state.layers[0]?.id === layer.id)) {
       return
     }
     event.preventDefault()
-    editorStore.set({tool: key === 'v' ? 'frame' : key === 'i' ? 'image' : 'mask'})
+    editorStore.set({tool: toolKeys[key]})
     return
   }
   if (key === 'f') {
@@ -78,11 +91,11 @@ const handleKeyDown = (event: KeyboardEvent) => {
     selectLayer(null)
     return
   }
-  if (['ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(event.key)) {
+  if (Object.hasOwn(arrowSteps, event.key)) {
     event.preventDefault()
     const step = (event.shiftKey ? 50 : 5) / state.view.scale
-    const x = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0
-    const y = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
+    const x = arrowSteps[event.key][0] * step
+    const y = arrowSteps[event.key][1] * step
     if (state.tool === 'image' && layer && isLayerTransformable(layer)) {
       updateLayer(layer.id, {rect: {
         ...layer.rect,

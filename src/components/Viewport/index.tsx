@@ -1,6 +1,6 @@
 import type {Point, Rect} from '#src/lib/geometry.ts'
 import type {Corner, FrameEdge, SnapGuides, SnapTargets} from '#src/lib/interaction.ts'
-import type {Layer, View} from '#src/lib/state.ts'
+import type {EditorState, Layer, View} from '#src/lib/state.ts'
 import type {DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent} from 'react'
 
 import clsx from 'clsx'
@@ -54,6 +54,15 @@ const rectStyle = (rect: Rect, rotation = 0) => ({
   height: rect.height,
   transform: `rotate(${rotation}deg)`,
 })
+const getCursor = (dragKind: DragKind | null, space: boolean, tool: EditorState['tool']) => {
+  if (dragKind === 'pan') {
+    return 'grabbing'
+  }
+  if (space) {
+    return 'grab'
+  }
+  return tool === 'mask' ? 'move' : undefined
+}
 export default function Viewport() {
   const ref = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -438,7 +447,7 @@ export default function Viewport() {
   const handles = tool === 'frame' && !frameLocked && (frameTouched || Boolean(dragKind?.startsWith('frame')))
   return <div
     className={clsx(css.viewport, dragKind && css.dragging)} aria-label='Canvas' data-testid='viewport' data-tool={tool} data-viewport role='application' style={{
-      cursor: dragKind === 'pan' ? 'grabbing' : space ? 'grab' : tool === 'mask' ? 'move' : undefined,
+      cursor: getCursor(dragKind, space, tool),
       backgroundSize: `${grid}px ${grid}px`,
       backgroundPosition: `${view.x}px ${view.y}px`,
     }} tabIndex={0} ref={ref}

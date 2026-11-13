@@ -44,6 +44,12 @@ const adjustmentLabels: Record<AdjustmentKey, {
     title: 'Cooler (left) or warmer (right)',
   },
 }
+const rectFieldTitles = {
+  x: 'X',
+  y: 'Y',
+  width: 'Width',
+  height: 'Height',
+} as const
 const formatSigned = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}`
 export default function LayersPanel() {
   const layers = useStore(projectStore, state => state.layers)
@@ -130,7 +136,7 @@ function TransformFields({layer}: {layer: Layer}) {
     updateLayer(layer.id, {rect}, {coalesceKey: `${field}:${layer.id}`})
   }
   return <div className={css.transformFields}>
-    {(['x', 'y', 'width', 'height'] as const).map(field => <label key={field}><span>{field === 'width' ? 'Width' : field === 'height' ? 'Height' : field.toUpperCase()}</span><input aria-label={`${field} of ${layer.name}`} step={1} type='number' value={Math.round(layer.rect[field] * 100) / 100} onChange={event => edit(field, Number(event.currentTarget.value))} /></label>)}
+    {(Object.keys(rectFieldTitles) as Array<keyof typeof rectFieldTitles>).map(field => <label key={field}><span>{rectFieldTitles[field]}</span><input aria-label={`${field} of ${layer.name}`} step={1} type='number' value={Math.round(layer.rect[field] * 100) / 100} onChange={event => edit(field, Number(event.currentTarget.value))} /></label>)}
     <label><span>Rotation</span><input aria-label={`Rotation of ${layer.name}`} step={1} type='number' value={Math.round(layer.rotation ?? 0)} onChange={event => updateLayer(layer.id, {rotation: Number(event.currentTarget.value)}, {coalesceKey: `rotation:${layer.id}`})} /></label>
     <label className={css.checkbox}><input checked={locked} type='checkbox' onChange={event => setLocked(event.currentTarget.checked)} />Lock ratio</label>
   </div>

@@ -19,6 +19,7 @@ const shape = (roundness: number, feather: number, width = 400, height = 240): F
   radius: roundness * Math.min(width, height) / 2,
   transition: feather * Math.min(width, height) / 2,
 })
+const smoothstep = (t: number) => t * t * (3 - 2 * t)
 /** largest alpha curvature across the diagonal of the top-left corner, where offset contours crease */
 const diagonalCurvature = (method: FeatherMethod, target: FeatherShape) => {
   let worst = 0
@@ -45,7 +46,6 @@ describe('feather method selection', () => {
 describe('distance feather', () => {
   test('keeps the original smoothstep over the signed distance', () => {
     const target = shape(0.2, 0.5)
-    const smoothstep = (t: number) => t * t * (3 - 2 * t)
     for (const [x, y] of [[10, 120], [30, 30], [5, 7], [200, 60], [390, 230]]) {
       const qx = Math.abs(x - 200) - (200 - target.radius)
       const qy = Math.abs(y - 120) - (120 - target.radius)

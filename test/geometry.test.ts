@@ -104,7 +104,7 @@ describe('interaction', () => {
         x: -100,
         y: -100,
       },
-      start: createRect(),
+      start: createRect(100, 100),
     })
     expect(rect.width).toBe(40)
   })

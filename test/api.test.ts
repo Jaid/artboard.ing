@@ -35,6 +35,10 @@ const request = (options: {
   },
   body: JSON.stringify(options.body ?? body),
 })
+const statusOf = async (pending: Promise<Response | undefined>) => {
+  const response = await pending
+  return response?.status
+}
 const asFetch = (fn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) => fn as typeof fetch
 describe('local Image API gateway', () => {
   test('health/configuration never reveals the server credential', async () => {
@@ -65,8 +69,8 @@ describe('local Image API gateway', () => {
         return Response.json(output)
       }),
     })
-    expect((await api(request({origin: 'https://example.invalid'})))?.status).toBe(403)
-    expect((await api(request({headers: {'Sec-Fetch-Site': 'cross-site'}})))?.status).toBe(403)
+    expect(await statusOf(api(request({origin: 'https://example.invalid'})))).toBe(403)
+    expect(await statusOf(api(request({headers: {'Sec-Fetch-Site': 'cross-site'}})))).toBe(403)
     expect(calls).toBe(0)
   })
   test('a missing or incorrect browser token is rejected', async () => {
@@ -74,15 +78,15 @@ describe('local Image API gateway', () => {
       key,
       token,
     })
-    expect((await api(request({token: ''})))?.status).toBe(403)
-    expect((await api(request({token: 'incorrect'})))?.status).toBe(403)
+    expect(await statusOf(api(request({token: ''})))).toBe(403)
+    expect(await statusOf(api(request({token: 'incorrect'})))).toBe(403)
   })
   test('unexpected host names are rejected (DNS rebinding boundary)', async () => {
     const api = createApi({
       key,
       token,
     })
-    expect((await api(new Request('http://unexpected.invalid/api/status')))?.status).toBe(403)
+    expect(await statusOf(api(new Request('http://unexpected.invalid/api/status')))).toBe(403)
   })
   test('only a validated Image API request reaches the dedicated images endpoint', async () => {
     let seen: {
@@ -133,14 +137,14 @@ describe('local Image API gateway', () => {
         return Response.json(output)
       }),
     })
-    expect((await api(request({headers: {'Content-Type': 'text/plain'}})))?.status).toBe(415)
-    expect((await api(request({body: {
+    expect(await statusOf(api(request({headers: {'Content-Type': 'text/plain'}})))).toBe(415)
+    expect(await statusOf(api(request({body: {
       ...body,
       input_references: [{
         type: 'image_url',
         image_url: {url: 'http://127.0.0.1/private'},
       }],
-    }})))?.status).toBe(400)
+    }})))).toBe(400)
     expect(calls).toBe(0)
   })
   test('upstream concurrency slots remain held until response bodies finish', async () => {
@@ -158,15 +162,15 @@ describe('local Image API gateway', () => {
       await Bun.sleep(1)
     }
     expect(controllers.length).toBe(2)
-    expect((await api(request()))?.status).toBe(429)
+    expect(await statusOf(api(request()))).toBe(429)
     for (const controller of controllers) {
       controller.enqueue((new TextEncoder).encode(JSON.stringify(output)))
       controller.close()
     }
-    expect((await first)?.status).toBe(200)
-    expect((await second)?.status).toBe(200)
+    expect(await statusOf(first)).toBe(200)
+    expect(await statusOf(second)).toBe(200)
   })
-  test('redirect-prone and non-HTTPS public upstream bases are refused', () => {
+  test('non-HTTPS public upstream bases are refused', () => {
     expect(() => createApi({baseUrl: 'http://public.invalid/api'})).toThrow('HTTPS')
   })
 })
@@ -175,9 +179,9 @@ describe('production static boundary', () => {
     const server = startServer({port: 0})
     try {
       for (const path of ['/.env', '/.git/config', '/%2eenv', '/assets/%2e%2e/%2eenv']) {
-        expect((await fetch(server.url.origin + path)).status).toBe(404)
+        expect(await statusOf(fetch(server.url.origin + path))).toBe(404)
       }
-      expect((await fetch(`${server.url.origin}/api/status`)).status).toBe(200)
+      expect(await statusOf(fetch(`${server.url.origin}/api/status`))).toBe(200)
     } finally {
       await server.stop(true)
     }

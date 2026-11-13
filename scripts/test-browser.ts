@@ -3,7 +3,7 @@ import type {HTTPRequest, Page} from 'puppeteer-core'
 
 import assert from 'node:assert/strict'
 import {mkdir} from 'node:fs/promises'
-import {resolve} from 'node:path'
+import {resolve as resolvePath} from 'node:path'
 
 import puppeteer from 'puppeteer-core'
 
@@ -12,18 +12,19 @@ import catalog from '../src/lib/models/catalog.json'
 import {startServer} from './server.ts'
 
 const candidates = [Bun.env.CHROME_PATH, Bun.which('chrome'), Bun.which('chromium'), 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].filter((path): path is string => Boolean(path))
-const executablePath = (await Promise.all(candidates.map(async path => (await Bun.file(path).exists() ? path : undefined)))).find(Boolean)
+const existing = await Promise.all(candidates.map(async path => (await Bun.file(path).exists() ? path : undefined)))
+const executablePath = existing.find(Boolean)
 if (!executablePath) {
   throw new Error('Chrome was not found. Set CHROME_PATH to a current Chrome/Chromium executable.')
 }
 await mkdir('out/test/screenshots', {recursive: true})
-const image = (await Bun.file('test/fixtures/red.png').bytes()).toBase64()
+const redPng = await Bun.file('test/fixtures/red.png').bytes()
 const server = startServer({port: 0})
 const development = Bun.argv.includes('--development')
-const vite = development ? await (await import('vite')).createServer({server: {
+const vite = development ? await import('vite').then(({createServer}) => createServer({server: {
   host: '127.0.0.1',
   port: 0,
-}}) : undefined
+}})) : undefined
 if (vite) {
   await vite.listen()
 }
@@ -58,7 +59,7 @@ let defer = false
 let page: Page
 const output = () => JSON.stringify({
   data: [{
-    b64_json: image,
+    b64_json: redPng.toBase64(),
     media_type: 'image/png',
   }],
   usage: {cost: 0.025},
@@ -172,10 +173,99 @@ async function pickViaMenu(item: string, ...files: Array<string>) {
   await page.mouse.click(canvas.x + 30, canvas.y + canvas.height - 30, {button: 'right'})
   await page.waitForSelector('[role="menu"]')
   const [chooser] = await Promise.all([page.waitForFileChooser(), button(item)])
-  await chooser.accept(files.map(file => resolve(file)))
+  await chooser.accept(files.map(file => resolvePath(file)))
 }
 const generateLabel = () => page.$eval('[data-testid="generate"]', node => node.textContent.trim())
 const settle = () => page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+async function measureSeam(method?: string) {
+  const target = await browser.newPage()
+  await wire(target)
+  await target.goto(`${appOrigin}/?debug=true${method ? `&feather_method=${method}` : ''}`, {waitUntil: 'networkidle0'})
+  await target.waitForFunction(() => Boolean(globalThis.artboarding?.persistenceStore.state.hydrated), {timeout: 30_000})
+  const result = await target.evaluate(async () => {
+    const h = globalThis.artboarding!
+    const make = async (color: string) => {
+      const c = new OffscreenCanvas(64, 64)
+      const ctx = c.getContext('2d')!
+      ctx.fillStyle = color
+      ctx.fillRect(0, 0, 64, 64)
+      return h.assets.add(await c.convertToBlob({type: 'image/png'}))
+    }
+    const blue = await make('#0000ff')
+    const red = await make('#ff0000')
+    const base = {
+      id: 'seam-base',
+      assetId: blue.id,
+      name: 'Blue',
+      kind: 'import' as const,
+      createdAt: 0,
+      visible: true,
+      area: 1,
+      feather: 0,
+      rect: {
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 300,
+      },
+    }
+    // an outpainting that overlaps the corner of the base: the base’s right and bottom edges run through its feather band
+    const edit = {
+      ...base,
+      id: 'seam-edit',
+      assetId: red.id,
+      kind: 'generated' as const,
+      feather: 0.6,
+      rect: {
+        x: 150,
+        y: 120,
+        width: 300,
+        height: 300,
+      },
+    }
+    const {canvas} = h.renderRegion({
+      layers: [base, edit],
+      region: {
+        x: 0,
+        y: 0,
+        width: 450,
+        height: 420,
+      },
+      size: {
+        width: 450,
+        height: 420,
+      },
+      measureEmpty: false,
+    })
+    const {data} = canvas.getContext('2d')!.getImageData(0, 0, 450, 420)
+    const red8 = (x: number, y: number) => data[(y * 450 + x) * 4]
+    let seam = 0
+    for (let y = 125; y < 290; y++) {
+      seam = Math.max(seam, Math.abs(red8(299, y) - red8(300, y)))
+    }
+    for (let x = 155; x < 290; x++) {
+      seam = Math.max(seam, Math.abs(red8(x, 299) - red8(x, 300)))
+    }
+    return {
+      seam,
+      blendedEdge: red8(160, 200),
+      exposed: [...data.subarray((410 * 450 + 440) * 4, (410 * 450 + 440) * 4 + 4)],
+    }
+  })
+  await target.close()
+  return result
+}
+const swapped = (rect: {
+  height: number
+  width: number
+  x: number
+  y: number
+}) => ({
+  x: rect.x + (rect.width - rect.height) / 2,
+  y: rect.y + (rect.height - rect.width) / 2,
+  width: rect.height,
+  height: rect.width,
+})
 try {
   page = await browser.newPage()
   await wire(page)
@@ -228,7 +318,7 @@ try {
     await settle()
     // Touching the frame edge reveals no handles, and dragging its corner or edge does not scale it.
     await page.mouse.move(bounds.x + bounds.width, bounds.y + bounds.height / 2)
-    await new Promise(resolve => setTimeout(resolve, 150))
+    await Bun.sleep(150)
     assert.equal(await page.$$eval('[data-corner], [data-edge]', nodes => nodes.length), 0)
     for (const [x, y] of [[bounds.x + bounds.width, bounds.y + bounds.height], [bounds.x + bounds.width, bounds.y + bounds.height / 2]]) {
       await page.mouse.move(x, y)
@@ -267,7 +357,8 @@ try {
     assert.equal(formats.svg, 'image/webp')
     assert.deepEqual(formats.ids, [1, 2, 3, 4])
     assert.equal(await page.$$eval('[data-testid="ingredient"]', nodes => nodes.length), 4)
-    assert.deepEqual((await page.$$eval('[data-testid="ingredient"]', nodes => nodes.map(node => (node as HTMLElement).dataset.index ?? ''))).toSorted((a, b) => a.localeCompare(b)), ['1', '2', '3', '4'])
+    const indices = await page.$$eval('[data-testid="ingredient"]', nodes => nodes.map(node => (node as HTMLElement).dataset.index ?? ''))
+    assert.deepEqual(indices.toSorted((a, b) => a.localeCompare(b)), ['1', '2', '3', '4'])
   })
   const prompt = 'The hand should hold a cup of coffee with ![2] printed on it'
   await check('Zero-delay typing preserves every character and implicit canvas reference', async () => {
@@ -308,19 +399,22 @@ try {
       kind: 'ingredient',
       index: 3,
     }])
-    assert.ok(preview.text.includes('Please add this witch [Image 2] to the image'), preview.text)
+    assert.ok(preview.text.includes('Please add this witch [image 2] to the image'), preview.text)
     await page.waitForFunction(text => globalThis.artboarding?.editorStore.state.prompt === text, {}, prompt)
   })
   await check('Collection thumbnails drag into the prompt and onto the canvas', async () => {
-    const dragTo = (selector: string, point: (rect: DOMRect) => {
-      x: number
-      y: number
-    }) => page.evaluate((selector, pointSource) => {
+    /** drops the second collection entry at a point given as a fraction of the target size plus a pixel offset */
+    const dragTo = (selector: string, anchor: {
+      dx: number
+      dy: number
+      fx: number
+      fy: number
+    }) => page.evaluate((targetSelector, {fx, fy, dx, dy}) => {
       const tile = document.querySelector<HTMLElement>('[data-testid="ingredient"][data-index="2"]')!
-      const target = document.querySelector<HTMLElement>(selector)!
-      const at = new Function('rect', `return (${pointSource})(rect)`)(target.getBoundingClientRect()) as {
-        x: number
-        y: number
+      const rect = document.querySelector<HTMLElement>(targetSelector)!.getBoundingClientRect()
+      const at = {
+        x: rect.left + rect.width * fx + dx,
+        y: rect.top + rect.height * fy + dy,
       }
       const dataTransfer = new DataTransfer
       tile.dispatchEvent(new DragEvent('dragstart', {
@@ -348,12 +442,14 @@ try {
         accepted,
         types: [...dataTransfer.types],
       }
-    }, selector, point.toString())
+    }, selector, anchor)
     const before = await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt)
-    const intoEditor = await dragTo('.monaco-editor .view-lines', rect => ({
-      x: rect.left + 4,
-      y: rect.top + 8,
-    }))
+    const intoEditor = await dragTo('.monaco-editor .view-lines', {
+      fx: 0,
+      fy: 0,
+      dx: 4,
+      dy: 8,
+    })
     assert.equal(intoEditor.accepted, true)
     assert.ok(intoEditor.types.includes('application/x-artboarding-ingredient'))
     await page.waitForFunction(previous => globalThis.artboarding!.editorStore.state.prompt !== previous, {}, before)
@@ -361,10 +457,12 @@ try {
     assert.ok(after.startsWith('![2]'), after)
     await page.evaluate(text => globalThis.artboarding!.editorStore.set({prompt: text}), before)
     const layers = await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length)
-    const onCanvas = await dragTo('[data-viewport]', rect => ({
-      x: rect.left + rect.width * 0.3,
-      y: rect.top + rect.height * 0.3,
-    }))
+    const onCanvas = await dragTo('[data-viewport]', {
+      fx: 0.3,
+      fy: 0.3,
+      dx: 0,
+      dy: 0,
+    })
     assert.equal(onCanvas.accepted, true)
     const placed = await page.evaluate(() => {
       const h = globalThis.artboarding!
@@ -422,7 +520,8 @@ try {
     await page.evaluate(id => globalThis.artboarding!.actions.updateLayer(id, {visible: false}), firstLayer)
     await settle()
     await settle()
-    assert.notEqual((await sample()).sum, moved.sum, 'The frame view must update when the artwork changes')
+    const hidden = await sample()
+    assert.notEqual(hidden.sum, moved.sum, 'The frame view must update when the artwork changes')
     await page.evaluate(() => globalThis.artboarding!.actions.undo())
     await page.evaluate(value => globalThis.artboarding!.editorStore.set({frame: value}), frame)
     await settle()
@@ -432,7 +531,7 @@ try {
         href: string
         name: string
       }> = []
-      const click = HTMLAnchorElement.prototype.click
+      const {click} = HTMLAnchorElement.prototype
       Object.assign(globalThis, {
         downloads,
         restoreClick: () => {
@@ -459,7 +558,8 @@ try {
     }>)
     const exported = await page.evaluate(async href => {
       const h = globalThis.artboarding!
-      const blob = await (await fetch(href)).blob()
+      const response = await fetch(href)
+      const blob = await response.blob()
       const original = h.assets.require(h.projectStore.state.ingredients.find(item => item.index === 1)!.assetId).blob
       const [a, b] = [await blob.bytes(), await original.bytes()]
       return {
@@ -495,7 +595,7 @@ try {
     const before = await page.evaluate(() => ({...globalThis.artboarding!.editorStore.state.frame}))
     const bounds = (await (await page.$('[data-testid="frame"]'))!.boundingBox())!
     await page.mouse.move(bounds.x + bounds.width, bounds.y + bounds.height / 2)
-    await new Promise(resolve => setTimeout(resolve, 150))
+    await Bun.sleep(150)
     const edge = (await (await page.$('[data-edge="e"]'))!.boundingBox())!
     await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2)
     await page.mouse.down()
@@ -1183,84 +1283,6 @@ try {
     assert.deepEqual(pixels.outside, [255, 0, 0, 255])
   })
   await check('?feather_method selects the feather; smooth hides where the artwork below ends', async () => {
-    const measureSeam = async (method?: string) => {
-      const target = await browser.newPage()
-      await wire(target)
-      await target.goto(`${appOrigin}/?debug=true${method ? `&feather_method=${method}` : ''}`, {waitUntil: 'networkidle0'})
-      await target.waitForFunction(() => Boolean(globalThis.artboarding?.persistenceStore.state.hydrated), {timeout: 30_000})
-      const result = await target.evaluate(async () => {
-        const h = globalThis.artboarding!
-        const make = async (color: string) => {
-          const c = new OffscreenCanvas(64, 64)
-          const ctx = c.getContext('2d')!
-          ctx.fillStyle = color
-          ctx.fillRect(0, 0, 64, 64)
-          return h.assets.add(await c.convertToBlob({type: 'image/png'}))
-        }
-        const blue = await make('#0000ff')
-        const red = await make('#ff0000')
-        const base = {
-          id: 'seam-base',
-          assetId: blue.id,
-          name: 'Blue',
-          kind: 'import' as const,
-          createdAt: 0,
-          visible: true,
-          area: 1,
-          feather: 0,
-          rect: {
-            x: 0,
-            y: 0,
-            width: 300,
-            height: 300,
-          },
-        }
-        // an outpainting that overlaps the corner of the base: the base’s right and bottom edges run through its feather band
-        const edit = {
-          ...base,
-          id: 'seam-edit',
-          assetId: red.id,
-          kind: 'generated' as const,
-          feather: 0.6,
-          rect: {
-            x: 150,
-            y: 120,
-            width: 300,
-            height: 300,
-          },
-        }
-        const {canvas} = h.renderRegion({
-          layers: [base, edit],
-          region: {
-            x: 0,
-            y: 0,
-            width: 450,
-            height: 420,
-          },
-          size: {
-            width: 450,
-            height: 420,
-          },
-          measureEmpty: false,
-        })
-        const {data} = canvas.getContext('2d')!.getImageData(0, 0, 450, 420)
-        const red8 = (x: number, y: number) => data[(y * 450 + x) * 4]
-        let seam = 0
-        for (let y = 125; y < 290; y++) {
-          seam = Math.max(seam, Math.abs(red8(299, y) - red8(300, y)))
-        }
-        for (let x = 155; x < 290; x++) {
-          seam = Math.max(seam, Math.abs(red8(x, 299) - red8(x, 300)))
-        }
-        return {
-          seam,
-          blendedEdge: red8(160, 200),
-          exposed: [...data.subarray((410 * 450 + 440) * 4, (410 * 450 + 440) * 4 + 4)],
-        }
-      })
-      await target.close()
-      return result
-    }
     const smooth = await measureSeam()
     const distance = await measureSeam('distance')
     console.log(`  largest step across the underlying edge · smooth ${smooth.seam} · distance ${distance.seam}`)
@@ -1347,7 +1369,7 @@ try {
         image.close()
       }
       const png = await h.renderExport('content', 'png')
-      if (navigator.clipboard?.write) {
+      if (isSecureContext) {
         await navigator.clipboard.write([new ClipboardItem({'image/png': png})])
         const items = await navigator.clipboard.read()
         if (!items.some(item => item.types.includes('image/png'))) {
@@ -1451,17 +1473,6 @@ try {
         source: ingredient.sourceAssetId ? read(h.assets.require(ingredient.sourceAssetId).bitmap) : undefined,
       }
     })
-    const swapped = (rect: {
-      height: number
-      width: number
-      x: number
-      y: number
-    }) => ({
-      x: rect.x + (rect.width - rect.height) / 2,
-      y: rect.y + (rect.height - rect.width) / 2,
-      width: rect.height,
-      height: rect.width,
-    })
     const openMenu = async () => {
       await page.click(`[data-testid="ingredient"][data-index="${setup.index}"] button`, {button: 'right'})
       await page.waitForSelector('[role="menu"][aria-label="Collection context menu"] [data-testid="collection-rotation"]:not(:disabled)')
@@ -1515,7 +1526,8 @@ try {
       globalThis.artboarding!.actions.redo()
       globalThis.artboarding!.actions.redo()
     })
-    assert.equal((await state()).ingredient.assetId, turned.ingredient.assetId)
+    const redone = await state()
+    assert.equal(redone.ingredient.assetId, turned.ingredient.assetId)
     // Choosing 0° and no flip returns the very original image.
     await openMenu()
     await page.select('[data-testid="collection-rotation"]', '0')

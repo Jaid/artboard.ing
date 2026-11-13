@@ -12,8 +12,8 @@ export const endpointRatios: ReadonlyArray<{
   ratios: ReadonlyArray<RatioString>
 }> = [
   {
-    // OpenRouter catalog ratios; CLIProxyAPI returned model_not_found for this model on 2026-11-13, so sizes are unverified.
-    pattern: '{,*/}gemini-nano-banana-2.1',
+    // Tested through CLIProxyAPI on 2026-11-13 at 1K: 13 ratios returned images; 16:9 hit quota. 1:8 and 8:1 differ by ~4%.
+    pattern: '{,*/}gemini-3.1-flash-image',
     ratios: ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9'],
   },
   {

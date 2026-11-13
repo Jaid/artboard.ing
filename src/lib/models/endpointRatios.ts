@@ -22,7 +22,7 @@ export const endpointRatios: ReadonlyArray<{
     ratios: ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '4:5', '5:4', '1:2', '2:1', '9:21', '21:9', '1:3', '3:1'],
   },
   {
-    // checked against CLIProxyAPI on 2026-10-25; 9:19.5, 19.5:9, 1:2 and 2:1 came back as 1024×1024
+    // Rechecked on 2026-11-13 against CLIProxyAPI: these nine ratios match exactly; 9:19.5, 19.5:9, 1:2 and 2:1 return 1024×1024.
     pattern: '{,*/}grok-imagine-image-2.0',
     ratios: ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '9:20', '20:9'],
   },

@@ -24,6 +24,15 @@ describe('models', () => {
     expect(findEndpointRatios('gemini-nano-banana-2.1')).toBeUndefined()
     expect(findEndpointRatios('gemini-3.1-flash-lite-image')).toBeUndefined()
   })
+  test('Grok Imagine Image 2.0 exposes only ratios verified through CLIProxyAPI', () => {
+    const ratios = ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '9:20', '20:9'] as const
+    expect(findEndpointRatios('grok-imagine-image-2.0')).toEqual(ratios)
+    expect(findEndpointRatios('x-ai/grok-imagine-image-2.0')).toEqual(ratios)
+    expect(findEndpointRatios('grok-imagine-image-2.1')).toBeUndefined()
+    for (const excluded of ['9:19.5', '19.5:9', '1:2', '2:1']) {
+      expect(ratios.some(ratio => ratio === excluded)).toBe(false)
+    }
+  })
   test('GPT Image 2.6 Sunburst has explicit endpoint ratios with either ID form', () => {
     const ratios = ['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '4:5', '5:4', '1:2', '2:1', '9:21', '21:9', '1:3', '3:1'] as const
     expect(findEndpointRatios('gpt-image-2.6-sunburst')).toEqual(ratios)

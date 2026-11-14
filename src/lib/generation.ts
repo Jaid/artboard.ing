@@ -7,7 +7,7 @@ import type {GenerationEvidence, Job, Layer} from './state.ts'
 import queryParameters from '#src/queryParameters.ts'
 
 import {createIngredient, getLayer, getWorkspaceEpoch, withIngredient} from './actions.ts'
-import {apiKeyStore, getApiKey, hasApiKey, refreshApiStatus, requestApiKey} from './apiKey.ts'
+import {apiKeyStore, canUseGateway, getApiKey, hasApiKey, refreshApiStatus, requestApiKey} from './apiKey.ts'
 import {assets} from './assets.ts'
 import {frameHasContent, getUpstreamCanvasSize, renderRegion} from './composite.ts'
 import {setContentAwareAlignment, supportsContentAwareAlignment} from './contentAware.ts'
@@ -18,6 +18,7 @@ import {blobToDataUrl, encodeCanvas, prepareUpstreamImage} from './image.ts'
 import {parseImageResult, readBoundedBody, validateImageRequest} from './imageApi.ts'
 import {getModel} from './models/index.ts'
 import {getErrorMessage, notify} from './notices.ts'
+import {getOpenRouterHostTitle, openRouterOrigin} from './openRouterAccess.ts'
 import {compilePrompt, findReferences} from './prompt.ts'
 import {closestRatio} from './ratio.ts'
 import {getRevisions, withAddedRevision} from './revisions.ts'
@@ -110,7 +111,9 @@ const ensureDispatchable = async (task: GenerationTask) => {
   }
   if (needsKey && !hasApiKey()) {
     requestApiKey()
-    notify('info', 'Configure the local server or enter a browser-session key. Demo mode does not need a key.')
+    // The local server’s key never goes to another host, so only a key entered here or the host itself can authenticate there.
+    const advice = queryParameters.openrouter_host === openRouterOrigin ? 'Configure the local server or enter a browser-session key.' : `Enter a browser-session key for ${getOpenRouterHostTitle(queryParameters.openrouter_host)}, or open the page with ?openrouter_key=false if it adds its own.`
+    notify('info', `${advice} Demo mode does not need a key.`)
     return false
   }
   if (editorStore.state.jobs.filter(job => job.status === 'running').length >= 2) {
@@ -284,14 +287,20 @@ async function runGeneration(task: GenerationTask) {
       })
     } else {
       const key = getApiKey()
-      const useGateway = !key && apiKeyStore.state.serverConfigured
-      const response = await fetch(useGateway ? '/api/generate' : 'https://openrouter.ai/api/v1/images', {
+      const useGateway = !key && canUseGateway()
+      let credentials: Record<string, string> = {}
+      if (useGateway) {
+        credentials = {'X-Artboarding-Token': apiKeyStore.state.csrfToken}
+      } else if (key) {
+        credentials = {Authorization: `Bearer ${key}`}
+      }
+      const response = await fetch(useGateway ? '/api/generate' : `${queryParameters.openrouter_host}/api/v1/images`, {
         method: 'POST',
         signal,
         redirect: 'error',
         headers: {
           'Content-Type': 'application/json',
-          ...useGateway ? {'X-Artboarding-Token': apiKeyStore.state.csrfToken} : {Authorization: `Bearer ${key}`},
+          ...credentials,
         },
         body: JSON.stringify(request),
       })

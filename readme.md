@@ -27,7 +27,7 @@ Create a `.env` file that sets `OPENROUTER_API_KEY`. Use a fresh key rather than
 
 The supplied key remains in the Bun server. Neither a Vite environment prefix nor a compile-time replacement exposes it to JavaScript. The browser receives only a configuration flag and a local anti-CSRF token. A production build is scanned for the supplied key and recognizable OpenRouter key literals.
 
-For a static deployment, the key popover accepts a browser-session key. This key stays in memory, is sent directly to OpenRouter, and is forgotten on reload. It is never included in portable projects or autosaves.
+For a static deployment, the key popover accepts a browser-session key. This key stays in memory, is sent directly to OpenRouter, and is forgotten on reload. It is never included in portable projects or autosaves. `?openrouter_key=sk-or-v1-…` starts the tab with such a key; see [OpenRouter host and key](#openrouter-host-and-key).
 
 **Demo mode requires no key and spends no credits.** It creates an explicitly labeled procedural illustration, or applies a procedural treatment to the captured canvas. It is not represented as an AI response. The mode survives reload and New project so a no-credit session does not silently become a paid one.
 
@@ -158,6 +158,12 @@ bytedance-seed/seedream-5-0-pro
 The two original shorthand IDs are accepted as aliases. The general chat catalog is not used to decide image-model availability. Account access, credits, prices and actual rendering quality remain provider/account properties, not guarantees made by a dropdown.
 
 The gateway validates model capabilities and embedded PNG/JPEG/WebP references, rebuilds an allowlisted request, limits concurrent requests to two and retains each slot until its response body finishes. It does not forward arbitrary provider options, fetch user-supplied remote image URLs, or reflect provider error bodies.
+
+### OpenRouter host and key
+
+`?openrouter_host=openrouter.nas.lan` sends every OpenRouter request – discovery and generation – to another origin serving OpenRouter’s API under `/api/v1/`, like an OpenRouter proxy. A bare host means HTTPS; a full URL like `http://10.0.0.22:3310` keeps its scheme and port, and any path is dropped. Anything that is not HTTP(S) falls back to `https://openrouter.ai`. The local gateway never forwards to another host, so its protected key is not used there: requests go straight from the browser, which requires CORS on that host, and authenticate with the browser-session key.
+
+`?openrouter_key=sk-or-v1-…` starts the tab with that browser-session key, exactly as if it had been entered in the key popover. `?openrouter_key=false` (or `0`) sends every request without an `Authorization` header and locks the key input, for a host that adds its own key, like `?openrouter_host=openrouter.nas.lan&openrouter_key=false`. On OpenRouter’s own host, the local gateway still adds the server key in that case, if one is configured.
 
 ### Own endpoint (CLIProxyAPI)
 

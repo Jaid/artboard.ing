@@ -3,6 +3,7 @@ import type {RatioString} from '#src/lib/ratio.ts'
 import readPermalink, {parseNumber} from 'read-permalink'
 
 import {defaultFeatherMethodId, featherMethodIds, isFeatherMethodId, parseFeatherMethodId} from '#src/lib/feather/featherMethodIds.ts'
+import {normalizeOpenRouterHost, normalizeOpenRouterKey, openRouterOrigin} from '#src/lib/openRouterAccess.ts'
 import {isRatioString} from '#src/lib/ratio.ts'
 
 const optionalString = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '')
@@ -70,6 +71,10 @@ const queryParameters = readPermalink(typeof location === 'undefined' ? '' : loc
     feather_method: defaultFeatherMethodId,
     /** OpenAI-compatible base URL like “http://127.0.0.1:8317/v1” (CLIProxyAPI); when set, generations go there through the AI SDK instead of OpenRouter */
     ai_endpoint: '',
+    /** the origin serving OpenRouter’s API, like an OpenRouter proxy or another server speaking the same API; a bare host like “openrouter.nas.lan” means HTTPS */
+    openrouter_host: openRouterOrigin,
+    /** the browser-session key this tab starts with, or false to send every request without one and lock the key input, for a host that adds its own */
+    openrouter_key: undefined as false | string | undefined,
     /** aspect ratios of the model_id model like “1,3/4,4/3,16/9,9/16”; empty inherits them from a matching catalog model or uses a common set */
     ratios: '',
     /** color that stands in for empty canvas in generation inputs, like “555”, “%23555” or “gray” */
@@ -85,6 +90,8 @@ const queryParameters = readPermalink(typeof location === 'undefined' ? '' : loc
     area: fraction,
     feather_method: featherMethod,
     ai_endpoint: (value: unknown) => optionalString(value).trim(),
+    openrouter_host: normalizeOpenRouterHost,
+    openrouter_key: normalizeOpenRouterKey,
     ratios: ratioList,
     transparent_color: cssColor,
   },

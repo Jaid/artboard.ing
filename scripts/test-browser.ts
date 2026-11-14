@@ -54,6 +54,11 @@ const checks: Array<{
 }> = []
 const errors: Array<string> = []
 const requests: Array<ImageRequest> = []
+const proxyHost = 'openrouter-proxy.test'
+const proxyRequests: Array<{
+  authorization?: string
+  path: string
+}> = []
 const pending: Array<HTTPRequest> = []
 let defer = false
 let page: Page
@@ -85,7 +90,31 @@ async function wire(target: Page) {
   target.on('request', request => {
     void (async () => {
       const url = new URL(request.url())
-      if (url.pathname === '/api/models' || url.pathname === '/api/v1/images/models') {
+      if (url.hostname === proxyHost) {
+        // an OpenRouter proxy from ?openrouter_host, which the browser reaches directly and therefore needs CORS
+        const cors = {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'authorization, content-type',
+          'Access-Control-Allow-Methods': 'GET, POST',
+        }
+        if (request.method() === 'OPTIONS') {
+          await request.respond({
+            status: 204,
+            headers: cors,
+          })
+          return
+        }
+        proxyRequests.push({
+          path: url.pathname,
+          authorization: request.headers().authorization,
+        })
+        await request.respond({
+          status: 200,
+          contentType: 'application/json',
+          headers: cors,
+          body: url.pathname === '/api/v1/images' ? output() : JSON.stringify(catalog),
+        })
+      } else if (url.pathname === '/api/models' || url.pathname === '/api/v1/images/models') {
         await request.respond({
           status: 200,
           contentType: 'application/json',
@@ -1747,6 +1776,54 @@ try {
     await page.reload({waitUntil: 'networkidle0'})
     await ready(page)
     assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), 0)
+  })
+  await check('?openrouter_host bypasses the gateway, and ?openrouter_key=false sends no key', async () => {
+    const generateThrough = async (query: string) => {
+      const target = await browser.newPage()
+      await wire(target)
+      // Discovery already runs while the page loads.
+      const before = proxyRequests.length
+      try {
+        await target.goto(`${appOrigin}/?debug=true&${query}`, {waitUntil: 'networkidle0'})
+        await ready(target)
+        // generate() resolves once the request has settled.
+        const failures = await target.evaluate(async () => {
+          const h = globalThis.artboarding!
+          h.editorStore.set({
+            demoMode: false,
+            prompt: 'A lighthouse on a cliff',
+          })
+          await h.generate()
+          return h.editorStore.state.jobs.map(job => job.error ?? job.status)
+        })
+        assert.deepEqual(failures, [])
+        const trigger = await target.$eval('button[popovertarget^="api-key"]', node => node.textContent.trim())
+        const placeholder = await target.$eval('input[type="password"]', node => ({
+          disabled: node.disabled,
+          placeholder: node.placeholder,
+        }))
+        return {
+          trigger,
+          ...placeholder,
+          sent: proxyRequests.slice(before),
+        }
+      } finally {
+        await target.close()
+      }
+    }
+    const requestsBefore = requests.length
+    const hostless = await generateThrough(`openrouter_host=${proxyHost}&openrouter_key=false`)
+    assert.equal(hostless.trigger, 'Host key')
+    assert.deepEqual([hostless.disabled, hostless.placeholder], [true, `Added by ${proxyHost}`])
+    assert.ok(hostless.sent.some(item => item.path === '/api/v1/images/models'), 'Discovery must ask the proxy too')
+    const keylessGeneration = hostless.sent.find(item => item.path === '/api/v1/images')
+    assert.ok(keylessGeneration, 'The generation must go to the proxy')
+    assert.equal(keylessGeneration.authorization, undefined)
+    const keyed = await generateThrough(`openrouter_host=https://${proxyHost}/api/v1&openrouter_key=sk-or-v1-browser-test`)
+    assert.equal(keyed.trigger, 'Session key')
+    assert.equal(keyed.disabled, false)
+    assert.equal(keyed.sent.find(item => item.path === '/api/v1/images')?.authorization, 'Bearer sk-or-v1-browser-test')
+    assert.equal(requests.length, requestsBefore, 'The local gateway must not be used for another host')
   })
   assert.deepEqual(errors, [], 'No unexpected browser JavaScript errors are allowed.')
   console.log(`Browser checks: ${checks.length} passed. All provider responses were deterministic mocks; no billable calls were made.`)

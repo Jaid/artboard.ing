@@ -1,16 +1,27 @@
+import queryParameters from '#src/queryParameters.ts'
+
+import {openRouterOrigin} from './openRouterAccess.ts'
 import {Store} from './store/index.ts'
 
+/** `?openrouter_key=false`: every request goes out without a key, for a host that adds its own, like an OpenRouter proxy */
+export const keyless = queryParameters.openrouter_key === false
 /** Browser-entered keys remain in memory only. The server key is never returned by /api/status. */
 export const apiKeyStore = new Store({
-  key: '',
+  key: typeof queryParameters.openrouter_key === 'string' ? queryParameters.openrouter_key : '',
   requested: false,
   serverConfigured: false,
   csrfToken: '',
   checked: false,
 })
-export const getApiKey = () => apiKeyStore.state.key.trim()
-export const hasApiKey = () => Boolean(getApiKey() || apiKeyStore.state.serverConfigured)
-export const setApiKey = (key: string) => apiKeyStore.set({key: key.trim()})
+export const getApiKey = () => (keyless ? '' : apiKeyStore.state.key.trim())
+/** whether the local gateway can send requests with its protected key; it only talks to OpenRouter itself, never to another `?openrouter_host` */
+export const canUseGateway = () => apiKeyStore.state.serverConfigured && queryParameters.openrouter_host === openRouterOrigin
+export const hasApiKey = () => keyless || Boolean(getApiKey()) || canUseGateway()
+export const setApiKey = (key: string) => {
+  if (!keyless) {
+    apiKeyStore.set({key: key.trim()})
+  }
+}
 export const requestApiKey = () => apiKeyStore.set({requested: true})
 export async function refreshApiStatus() {
   try {

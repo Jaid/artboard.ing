@@ -2,6 +2,7 @@ import type {RatioString} from '../ratio.ts'
 
 import queryParameters, {customModelIds} from '#src/queryParameters.ts'
 
+import {openRouterOrigin} from '../openRouterAccess.ts'
 import {isRatioString} from '../ratio.ts'
 import {Store} from '../store/index.ts'
 import {ImageModel} from './base/ImageModel.ts'
@@ -169,9 +170,11 @@ export function applyImageCatalog(value: unknown) {
 }
 export async function refreshImageCatalog() {
   try {
-    let response = await fetch('/api/models', {signal: AbortSignal.timeout(12_000)})
-    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
-      response = await fetch('https://openrouter.ai/api/v1/images/models', {signal: AbortSignal.timeout(12_000)})
+    const host = queryParameters.openrouter_host
+    // The local gateway only discovers OpenRouter’s own catalog, so another host is asked directly.
+    let response = host === openRouterOrigin ? await fetch('/api/models', {signal: AbortSignal.timeout(12_000)}) : undefined
+    if (!response?.ok || !response.headers.get('content-type')?.includes('application/json')) {
+      response = await fetch(`${host}/api/v1/images/models`, {signal: AbortSignal.timeout(12_000)})
     }
     if (!response.ok) {
       throw new Error(`Image catalog returned HTTP ${response.status}.`)

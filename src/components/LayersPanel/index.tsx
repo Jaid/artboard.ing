@@ -149,7 +149,7 @@ function LayerRow({layer, background, selected}: {
   const asset = assets.get(layer.assetId)
   const tool = useStore(editorStore, state => state.tool)
   const editingMask = selected && tool === 'mask'
-  const rerolling = useStore(editorStore, state => state.jobs.some(job => job.layerId === layer.id && job.status === 'running'))
+  const rerolling = useStore(editorStore, state => state.jobs.some(job => job.target === 'canvas' && job.layerId === layer.id && job.status === 'running'))
   const hoveredAssetId = useHoveredCollectionAssetId()
   const rowRef = useRef<HTMLLIElement>(null)
   const revisionCount = getRevisions(layer).length

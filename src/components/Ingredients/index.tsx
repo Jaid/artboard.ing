@@ -1,7 +1,8 @@
-import type {Ingredient} from '#src/lib/state.ts'
+import type {CollectionJob, Ingredient} from '#src/lib/state.ts'
 import type {ThumbnailFit} from '#src/lib/thumbnailFit.ts'
 import type {MouseEvent, ReactNode} from 'react'
 
+import {RotateCw, X} from 'lucide-react'
 import {useEffect, useId, useMemo, useRef, useSyncExternalStore} from 'react'
 
 import {addIngredients} from '#src/lib/actions.ts'
@@ -11,13 +12,18 @@ import {setHoveredCollectionIndex} from '#src/lib/collectionHover.ts'
 import {renderRegion} from '#src/lib/composite.ts'
 import {openCollectionMenu} from '#src/lib/contextMenu.ts'
 import {pickImageFiles} from '#src/lib/filePicker.ts'
+import {dismissJob, transformIngredient} from '#src/lib/generation.ts'
 import {getGenerationRegion} from '#src/lib/generationRegion.ts'
+import {getModel} from '#src/lib/models/index.ts'
 import {getErrorMessage, notify} from '#src/lib/notices.ts'
 import {insertIntoPrompt} from '#src/lib/promptEditor.ts'
+import {parseRatio} from '#src/lib/ratio.ts'
 import {getAssetOccurrences} from '#src/lib/revisions.ts'
 import {editorStore, projectStore} from '#src/lib/state.ts'
 import {useStore} from '#src/lib/store/index.ts'
 import {getThumbnailFit} from '#src/lib/thumbnailFit.ts'
+import {findTransformPreset} from '#src/lib/transformPresets.ts'
+import {useElapsedSeconds} from '#src/lib/useElapsedSeconds.ts'
 
 import css from './style.module.sass'
 
@@ -90,12 +96,15 @@ const addFiles = async () => {
 /** The collection: the live frame view, then every numbered image as an equally tall thumbnail. Click inserts its reference; drag it onto the canvas or into the prompt. */
 export default function Ingredients() {
   const ingredients = useStore(projectStore, state => state.ingredients)
+  const jobs = useStore(editorStore, state => state.jobs)
   const assetRevision = useAssetRevision()
+  const transforms = jobs.filter(job => job.target === 'collection')
   return <section className={css.container} aria-label='Image collection' data-testid='ingredients'>
     <div className={css.grid}>
       <FrameView assetRevision={assetRevision} />
       {ingredients.map(ingredient => <IngredientTile key={ingredient.id} ingredient={ingredient} />)}
-      {!ingredients.length && <button className={css.empty} type='button' onClick={() => void addFiles()}>Drop, paste or choose images for the collection</button>}
+      {transforms.map(job => <TransformJobTile key={job.id} job={job} />)}
+      {!ingredients.length && !transforms.length && <button className={css.empty} type='button' onClick={() => void addFiles()}>Drop, paste or choose images for the collection</button>}
     </div>
   </section>
 }
@@ -300,4 +309,33 @@ function IngredientTile({ingredient}: {ingredient: Ingredient}) {
     unrolledSource={asset?.url ?? (ingredient.thumbnail || undefined)}
     onDragStart={dataTransfer => startIngredientDrag(dataTransfer, ingredient)}
   />
+}
+/** A transform that is running or has failed, shaped like the requested ratio. Once done, the new collection item takes its place. */
+function TransformJobTile({job}: {job: CollectionJob}) {
+  const running = job.status === 'running'
+  const seconds = useElapsedSeconds(job.startedAt, running)
+  const source = useStore(projectStore, state => state.ingredients.find(item => item.id === job.sourceIngredientId))
+  const title = `${findTransformPreset(job.presetId)?.title ?? 'Transform'}${source ? ` of ${getReferenceText(source)}` : ''}`
+  const retry = () => {
+    dismissJob(job.id)
+    void transformIngredient(job.sourceIngredientId, job.presetId)
+  }
+  return <div
+    className={css.pending}
+    aria-busy={running}
+    aria-label={running ? `${title} · ${getModel(job.modelId).title} · ${seconds} s` : `${title} failed: ${job.error ?? 'unknown error'}`}
+    data-kind='generated'
+    data-status={job.status}
+    data-testid='transform-job'
+    role='group'
+    style={{aspectRatio: String(getThumbnailFit(parseRatio(job.ratio), 1).aspect)}}
+    title={running ? `${title} · ${getModel(job.modelId).title}` : job.error}
+  >
+    {source?.thumbnail && <img className={css.pendingSource} alt='' draggable={false} src={source.thumbnail} />}
+    <span className={css.pendingStatus}>{running ? <><span className={css.spinner} />{seconds} s</> : 'Failed'}</span>
+    <span className={css.pendingActions}>
+      {!running && source && <button className={css.pendingButton} aria-label='Retry' title='Retry with the current model settings' type='button' onClick={retry}><RotateCw size={11} /></button>}
+      <button className={css.pendingButton} aria-label={running ? 'Cancel transform' : 'Dismiss'} title={running ? 'Cancel transform' : 'Dismiss'} type='button' onClick={() => dismissJob(job.id)}><X size={11} /></button>
+    </span>
+  </div>
 }

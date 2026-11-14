@@ -1,3 +1,4 @@
+import type {Job} from '#src/lib/state.ts'
 import type {ComponentType} from 'react'
 
 import {afterEach, describe, expect, jest, mock, test} from 'bun:test'
@@ -38,6 +39,20 @@ async function renderComponent(componentSegment: string) {
 const revision = (id: string) => ({
   assetId: `out-${id}`,
   evidence: createEvidence(id),
+})
+/** a transform of collection item 1 */
+const createTransformJob = (id: string, status: Job['status']): Job => ({
+  id,
+  controller: new AbortController,
+  modelId: 'google/gemini-nano-banana-2.1',
+  prompt: 'Extract the subject of this image in high quality on a neutral background',
+  startedAt: Date.now(),
+  status,
+  target: 'collection',
+  presetId: 'extract-subject',
+  ratio: '16:9',
+  sourceIngredientId: 'ingredient-1',
+  ...status === 'failed' ? {error: 'Image API request failed (HTTP 402).'} : {},
 })
 const menuItems = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
 afterEach(() => {
@@ -124,6 +139,24 @@ describe('Ingredients', () => {
     }
     expect(container.querySelector('[data-testid="ingredient"] [role="tooltip"]')?.textContent).toContain('Witch')
   })
+  test('running and failed transforms stand in the collection, not on the canvas', async () => {
+    act(() => resetProject({ingredients: [createIngredient(1, {name: 'Witch'})]}))
+    act(() => editorStore.set({jobs: [createTransformJob('running', 'running'), createTransformJob('failed', 'failed')]}))
+    const {container} = await renderComponent('Ingredients')
+    const tiles = [...container.querySelectorAll<HTMLElement>('[data-testid="transform-job"]')]
+    expect(tiles.map(tile => tile.dataset.status)).toEqual(['running', 'failed'])
+    expect(tiles[0].getAttribute('aria-label')).toStartWith('Extract subject of ![1] · Nano Banana 2.1')
+    expect(tiles[0].querySelector('[aria-label="Retry"]')).toBeNull()
+    expect(tiles[1].getAttribute('aria-label')).toBe('Extract subject of ![1] failed: Image API request failed (HTTP 402).')
+    expect(tiles[1].querySelector('[aria-label="Retry"]')).not.toBeNull()
+    // They are no collection items: no number, no reference, no menu.
+    expect(container.querySelectorAll('[data-testid="ingredient"]')).toHaveLength(1)
+    act(() => tiles[0].querySelector<HTMLButtonElement>('[aria-label="Cancel transform"]')!.click())
+    expect(editorStore.state.jobs.map(item => item.id)).toEqual(['failed'])
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Dismiss"]')!.click())
+    expect(editorStore.state.jobs).toEqual([])
+    expect(container.querySelector('[data-testid="transform-job"]')).toBeNull()
+  })
   test('hovering a tile marks it for the prompt, the layers and the canvas', async () => {
     act(() => resetProject({ingredients: [createIngredient(4)]}))
     const {container} = await renderComponent('Ingredients')
@@ -140,7 +173,7 @@ describe('Ingredients', () => {
   })
 })
 describe('collection context menu', () => {
-  test('offers Export and Delete for items and Export… for the frame view', async () => {
+  test('offers transforms, Export and Delete for items and Export… for the frame view', async () => {
     act(() => resetProject({ingredients: [createIngredient(1)]}))
     const {container} = await renderComponent('Ingredients')
     const menu = await renderComponent('ContextMenu')
@@ -150,7 +183,13 @@ describe('collection context menu', () => {
       clientY: 20,
     })
     expect(contextMenuStore.state.collectionIndex).toBe(1)
-    expect(labels()).toEqual(['Export', 'Delete'])
+    expect(labels()).toEqual(['Extract subject', 'Export', 'Delete'])
+    const transform = menu.container.querySelector<HTMLButtonElement>('[role="group"][aria-label="Transform"] [data-preset="extract-subject"]')!
+    expect(transform.title).toStartWith('Extract the subject of this image in high quality on a neutral background\n')
+    expect(transform.title).toContain(getModel(editorStore.state.modelId).title)
+    expect(transform.title).toContain(editorStore.state.ratio)
+    // Without the image’s pixels there is nothing to transform.
+    expect(transform.disabled).toBe(true)
     act(() => closeContextMenu())
     fireEvent.contextMenu(container.querySelector('[data-testid="frame-view"]')!)
     expect(contextMenuStore.state.collectionIndex).toBe(0)

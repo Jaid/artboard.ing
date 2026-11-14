@@ -8,14 +8,16 @@ import {assets} from '#src/lib/assets.ts'
 import {closeContextMenu, contextMenuStore} from '#src/lib/contextMenu.ts'
 import {exportIngredient, openExportDialog} from '#src/lib/exporting.ts'
 import {pickImageFiles} from '#src/lib/filePicker.ts'
-import {reroll} from '#src/lib/generation.ts'
+import {reroll, transformIngredient} from '#src/lib/generation.ts'
 import {getIngredientOrientation, getSourceAssetId, orientationStore, setIngredientOrientation} from '#src/lib/ingredientOrientation.ts'
 import {getLayerBounds} from '#src/lib/layerGeometry.ts'
+import {getModel} from '#src/lib/models/index.ts'
 import {getErrorMessage, notify} from '#src/lib/notices.ts'
 import {flips, flipTitles, rotations, rotationTitles} from '#src/lib/orientation.ts'
 import {insertIntoPrompt} from '#src/lib/promptEditor.ts'
 import {editorStore, projectStore} from '#src/lib/state.ts'
 import {useStore} from '#src/lib/store/index.ts'
+import {transformPresets} from '#src/lib/transformPresets.ts'
 import {zoomBy} from '#src/lib/viewport.ts'
 import {captureCanvasSnapshot, referenceAsset} from '#src/lib/workspaceIO.ts'
 
@@ -80,7 +82,7 @@ export default function ContextMenu() {
   if (!menu.open || stale) {
     return null
   }
-  const estimatedHeight = collection ? 220 : (layer ? 650 : 420)
+  const estimatedHeight = collection ? 300 : (layer ? 650 : 420)
   return <div
     className={css.menu} aria-label={collection ? 'Collection context menu' : 'Canvas context menu'} data-overlay-control role='menu' style={{
       top: Math.max(8, Math.min(menu.y, innerHeight - estimatedHeight)),
@@ -105,6 +107,8 @@ export default function ContextMenu() {
       <strong>{collectionItem ? `![${collectionItem.index}] · ${collectionItem.name}` : `![0] · ${frameEnabled ? 'canvas inside the frame' : 'all canvas artwork'}`}</strong>
       {collectionItem ? <>
         <OrientationRows ingredient={collectionItem} />
+        <hr />
+        <TransformItems ingredient={collectionItem} />
         <hr />
         {button('Export', () => exportIngredient(collectionItem))}
         {button('Delete', () => removeIngredient(collectionItem.id))}
@@ -168,6 +172,19 @@ export default function ContextMenu() {
   </div>
 }
 
+/** Transform presets for a collection image. They ignore the prompt input and use the selected model, resolution, quality and ratio; each result becomes a new collection item. */
+function TransformItems({ingredient}: {ingredient: Ingredient}) {
+  const available = useSyncExternalStore(subscribeAssets, () => assets.has(ingredient.assetId))
+  const model = useStore(editorStore, state => getModel(state.modelId))
+  const resolution = useStore(editorStore, state => state.resolution)
+  const ratio = useStore(editorStore, state => state.ratio)
+  const acceptsImages = model.maxReferences > 0
+  const settings = [model.title, model.normalizeResolution(resolution), ratio].filter(Boolean).join(' · ')
+  return <div className={css.group} aria-label='Transform' role='group'>
+    <span className={css.groupTitle} aria-hidden>Transform</span>
+    {transformPresets.map(preset => <button key={preset.id} data-preset={preset.id} disabled={!available || !acceptsImages} role='menuitem' title={acceptsImages ? `${preset.prompt}\n${settings}` : `${model.title} does not accept input images.`} type='button' onClick={() => run(() => transformIngredient(ingredient.id, preset.id))}>{preset.title}</button>)}
+  </div>
+}
 /** Rotation and flip of a collection image. The menu stays open, so both can be set one after the other. */
 function OrientationRows({ingredient}: {ingredient: Ingredient}) {
   const pending = useStore(orientationStore, state => state.pending.get(ingredient.id))

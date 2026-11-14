@@ -1,33 +1,22 @@
 import type {Rect} from '#src/lib/geometry.ts'
-import type {Job} from '#src/lib/state.ts'
+import type {CanvasJob} from '#src/lib/state.ts'
 
 import clsx from 'clsx'
 import {RotateCw, X} from 'lucide-react'
-import {useEffect, useState} from 'react'
 
 import {getLayer} from '#src/lib/actions.ts'
 import {dismissJob, generate, reroll} from '#src/lib/generation.ts'
 import {getModel} from '#src/lib/models/index.ts'
+import {useElapsedSeconds} from '#src/lib/useElapsedSeconds.ts'
 
 import css from './style.module.sass'
 
 type Props = {
-  job: Job
+  job: CanvasJob
   /** screen rect */
   rect: Rect
 }
 
-const useElapsedSeconds = (since: number, active: boolean) => {
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    if (!active) {
-      return
-    }
-    const interval = setInterval(() => setNow(Date.now()), 250)
-    return () => clearInterval(interval)
-  }, [active])
-  return Math.max(0, Math.floor((now - since) / 1000))
-}
 const JobOverlay = ({job, rect}: Props) => {
   const running = job.status === 'running'
   const seconds = useElapsedSeconds(job.startedAt, running)

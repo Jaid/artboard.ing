@@ -491,7 +491,7 @@ export default function Viewport() {
   >
     <canvas className={css.scene} aria-hidden data-testid='scene' ref={canvasRef} />
     {outlined.map(layer => <LayerOutline key={layer.id} layer={layer} masked={layers[0]?.id !== layer.id} transform={layer.id === selectedLayerId && tool === 'image' && isLayerTransformable(layer, layers)} view={view} />)}
-    {jobs.map(job => <JobOverlay key={job.id} job={job} rect={toScreenRect(view, job.rect)} />)}
+    {jobs.map(job => job.target === 'canvas' && <JobOverlay key={job.id} job={job} rect={toScreenRect(view, job.rect)} />)}
     {tool !== 'mask' && frameEnabled && <div className={clsx(css.frame, handles && css.handlesVisible, editor.generationHover && css.charged, dragKind?.startsWith('frame') && css.activeFrame)} data-testid='frame' style={rectStyle(frameScreen)}>
       {tool === 'frame' && !frameLocked && <>
         {corners.map(corner => <div key={corner} className={clsx(css.handle, css[corner])} data-corner={corner} title='Resize frame; aspect ratio stays locked' />)}

@@ -113,18 +113,34 @@ export type View = {
 
 export type JobStatus = 'failed' | 'running'
 
-export type Job = {
+/** where the result of a job lands */
+export type JobTarget = {
+  /** the generated layer this job adds a revision to, for rerolls */
+  layerId?: string
+  /** the captured frame the result is placed in */
+  rect: Rect
+  target: 'canvas'
+} | {
+  presetId: string
+  ratio: RatioString
+  /** the collection image the transform preset is applied to */
+  sourceIngredientId: string
+  target: 'collection'
+}
+
+export type Job = JobTarget & {
   controller: AbortController
   error?: string
   id: string
-  /** the generated layer this job adds a revision to, for rerolls */
-  layerId?: string
   modelId: string
   prompt: string
-  rect: Rect
   startedAt: number
   status: JobStatus
 }
+
+export type CanvasJob = Extract<Job, {target: 'canvas'}>
+
+export type CollectionJob = Extract<Job, {target: 'collection'}>
 
 export type Notice = {
   id: string

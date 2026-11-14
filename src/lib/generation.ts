@@ -2,7 +2,7 @@ import type {Asset} from './assets.ts'
 import type {Rect} from './geometry.ts'
 import type {ImageModel} from './models/index.ts'
 import type {RatioString} from './ratio.ts'
-import type {GenerationEvidence, Job, Layer} from './state.ts'
+import type {GenerationEvidence, Job, JobTarget, Layer} from './state.ts'
 
 import queryParameters from '#src/queryParameters.ts'
 
@@ -20,9 +20,10 @@ import {getModel} from './models/index.ts'
 import {getErrorMessage, notify} from './notices.ts'
 import {getOpenRouterHostTitle, openRouterOrigin} from './openRouterAccess.ts'
 import {compilePrompt, findReferences} from './prompt.ts'
-import {closestRatio} from './ratio.ts'
+import {closestRatio, parseRatio} from './ratio.ts'
 import {getRevisions, withAddedRevision} from './revisions.ts'
 import {defaultGeneratedMask, editorStore, projectStore} from './state.ts'
+import {findTransformPreset} from './transformPresets.ts'
 
 export const emptyCanvasColor = queryParameters.transparent_color
 export type GenerationOverrides = {
@@ -85,11 +86,12 @@ type GenerationTask = {
   capturedAt: number
   compiledPrompt: string
   demoMode: boolean
+  /** where the result lands: a new layer or revision in the captured frame, or a new collection item */
+  destination: JobTarget
   epoch: number
-  frame: Rect
-  /** the generated layer that receives the result as a new revision */
-  layerId?: string
   model: ImageModel
+  /** name of the result; derived from the prompt when absent */
+  name?: string
   prompt: string
   quality: string
   ratio: RatioString
@@ -156,7 +158,10 @@ export async function generate(overrides: GenerationOverrides = {}) {
     capturedAt,
     model,
     demoMode: editor.demoMode,
-    frame: editor.frame,
+    destination: {
+      target: 'canvas',
+      rect: editor.frame,
+    },
     ratio: editor.ratio,
     resolution: editor.resolution,
     quality: editor.quality,
@@ -196,7 +201,11 @@ export async function reroll(layerId: string) {
     capturedAt,
     model,
     demoMode,
-    frame: {...layer.rect},
+    destination: {
+      target: 'canvas',
+      rect: {...layer.rect},
+      layerId,
+    },
     ratio: closestRatio(layer.rect.width / layer.rect.height, model.aspectRatios),
     resolution: model.normalizeResolution(resolution),
     quality: model.normalizeQuality(quality) ?? '',
@@ -204,8 +213,52 @@ export async function reroll(layerId: string) {
     compiledPrompt: evidence.compiledPrompt,
     canvas: evidence.canvasAssetId ? {assetId: evidence.canvasAssetId} : undefined,
     referenceAssetIds: evidence.referenceAssetIds,
-    layerId,
     variation: getRevisions(layer).length,
+  })
+}
+
+/**
+ * Applies a transform preset to a collection image. The prompt input plays no part: the preset’s instruction is sent with the image as the only input image.
+ * The currently selected model, resolution, quality and ratio are used, and the result becomes a new collection item.
+ */
+export async function transformIngredient(ingredientId: string, presetId: string) {
+  const epoch = getWorkspaceEpoch()
+  const capturedAt = Date.now()
+  const preset = findTransformPreset(presetId)
+  const ingredient = projectStore.state.ingredients.find(item => item.id === ingredientId)
+  if (!preset || !ingredient) {
+    notify('error', 'This collection item or transform no longer exists.')
+    return
+  }
+  if (!assets.has(ingredient.assetId)) {
+    notify('error', 'The image of this collection item is unavailable.')
+    return
+  }
+  const model = getModel(editorStore.state.modelId)
+  if (model.maxReferences < 1) {
+    notify('error', `${model.title} does not accept input images. Choose another model to transform images.`)
+    return
+  }
+  const {demoMode, resolution, quality} = editorStore.state
+  const ratio = model.supportsRatio(editorStore.state.ratio) ? editorStore.state.ratio : closestRatio(parseRatio(editorStore.state.ratio), model.aspectRatios)
+  await runGeneration({
+    epoch,
+    capturedAt,
+    model,
+    demoMode,
+    destination: {
+      target: 'collection',
+      presetId: preset.id,
+      ratio,
+      sourceIngredientId: ingredient.id,
+    },
+    ratio,
+    resolution: model.normalizeResolution(resolution),
+    quality: model.normalizeQuality(quality) ?? '',
+    name: `${preset.title} · ${ingredient.name}`,
+    prompt: preset.prompt,
+    compiledPrompt: preset.prompt,
+    referenceAssetIds: [ingredient.assetId],
   })
 }
 
@@ -219,11 +272,13 @@ async function runGeneration(task: GenerationTask) {
     controller: new AbortController,
     modelId: model.id,
     prompt: task.prompt,
-    rect: {...task.frame},
     startedAt: Date.now(),
     status: 'running',
-    ...task.layerId ? {layerId: task.layerId} : {},
+    ...task.destination,
   }
+  // A canvas result is fitted into its frame, while a collection item simply is what the provider returns.
+  const requestedAspect = job.target === 'canvas' ? job.rect.width / job.rect.height : parseRatio(job.ratio)
+  const nothingAdded = job.target === 'canvas' ? 'No layer was added.' : 'No collection item was added.'
   const signal = AbortSignal.any([job.controller.signal, AbortSignal.timeout(240_000)])
   editorStore.set(state => ({
     ...state,
@@ -273,8 +328,8 @@ async function runGeneration(task: GenerationTask) {
     })
     let blob: Blob
     if (task.demoMode) {
-      const source = task.canvas && 'canvas' in task.canvas ? task.canvas.canvas : canvasAsset?.bitmap
-      blob = await createDemoImage(task.prompt, job.rect.width / job.rect.height, source, signal, task.variation)
+      const source = task.canvas && 'canvas' in task.canvas ? task.canvas.canvas : canvasAsset?.bitmap ?? (job.target === 'collection' ? ingredientAssets[0]?.bitmap : undefined)
+      blob = await createDemoImage(task.prompt, requestedAspect, source, signal, task.variation)
     } else if (queryParameters.ai_endpoint) {
       // Loaded on demand so the AI SDK stays out of the main bundle. A browser-session key, if entered, is sent as bearer token.
       const {generateWithAiEndpoint} = await import('./aiEndpoint.ts')
@@ -306,7 +361,7 @@ async function runGeneration(task: GenerationTask) {
       })
       if (!response.ok) {
         await response.body?.cancel()
-        throw new Error(`Image API request failed (HTTP ${response.status}). Check your key, credit balance and selected model. No layer was added.`)
+        throw new Error(`Image API request failed (HTTP ${response.status}). Check your key, credit balance and selected model. ${nothingAdded}`)
       }
       const bytes = await readBoundedBody(response, 64_000_000, signal)
       const result = parseImageResult(JSON.parse((new TextDecoder).decode(bytes)))
@@ -320,13 +375,20 @@ async function runGeneration(task: GenerationTask) {
     const raw = await assets.add(blob)
     releases.push(assets.pin([raw.id]))
     const actualAspect = raw.width / raw.height
-    const requestedAspect = job.rect.width / job.rect.height
-    if (Math.abs(Math.log(actualAspect / requestedAspect)) > 0.02) {
+    if (job.target === 'canvas' && Math.abs(Math.log(actualAspect / requestedAspect)) > 0.02) {
       notify('info', 'The provider returned a different aspect ratio. It is fitted into the captured frame; the raw output remains in the project.')
     }
-    const name = `${task.demoMode ? 'Demo · ' : ''}${task.prompt.trim().split('\n')[0].slice(0, 72)}`
+    const name = `${task.demoMode ? 'Demo · ' : ''}${(task.name ?? task.prompt.trim().split('\n')[0]).slice(0, 72)}`
     const ingredient = await createIngredient(raw, name, 'generated')
     if (!current()) {
+      return
+    }
+    if (job.target === 'collection') {
+      projectStore.commit(state => withIngredient(state, ingredient))
+      editorStore.set(state => ({
+        ...state,
+        jobs: state.jobs.filter(item => item.id !== job.id),
+      }))
       return
     }
     const evidence: GenerationEvidence = {
@@ -358,7 +420,7 @@ async function runGeneration(task: GenerationTask) {
       evidence,
     }
     // A reroll whose layer was deleted in the meantime still lands, as a layer of its own.
-    const target = task.layerId ? getLayer(task.layerId) : undefined
+    const target = job.layerId ? getLayer(job.layerId) : undefined
     projectStore.commit(state => withIngredient({
       ...state,
       layers: target ? state.layers.map(item => (item.id === target.id ? withAddedRevision(item, {
@@ -387,7 +449,7 @@ async function runGeneration(task: GenerationTask) {
         jobs: state.jobs.map(item => (item.id === job.id ? {
           ...item,
           status: 'failed' as const,
-          error: signal.aborted ? 'Generation timed out. No layer was added.' : getErrorMessage(error),
+          error: signal.aborted ? `Generation timed out. ${nothingAdded}` : getErrorMessage(error),
         } : item)),
       }))
     }

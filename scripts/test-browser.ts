@@ -576,7 +576,7 @@ try {
     })
     await page.click('[data-testid="ingredient"][data-index="1"] button', {button: 'right'})
     await page.waitForSelector('[role="menu"][aria-label="Collection context menu"]')
-    assert.deepEqual(await page.$$eval('[role="menu"] [role="menuitem"]', nodes => nodes.map(node => node.textContent)), ['Export', 'Delete'])
+    assert.deepEqual(await page.$$eval('[role="menu"] [role="menuitem"]', nodes => nodes.map(node => node.textContent)), ['Extract subject', 'Export', 'Delete'])
     await button('Export')
     const download = await page.waitForFunction(() => (globalThis as unknown as {downloads: Array<{
       href: string
@@ -950,6 +950,70 @@ try {
     assert.equal(await page.evaluate(id => globalThis.artboarding!.projectStore.state.layers.find(item => item.id === id)!.assetId, original.id), original.assetId)
     await page.select('[data-testid="model-select"]', 'google/gemini-nano-banana-2.1')
     await page.evaluate(() => globalThis.artboarding!.editorStore.set({prompt: 'A localized detail repair'}))
+  })
+  await check('Transform presets ignore the prompt and add a collection item with the current model, resolution and ratio', async () => {
+    const before = await page.evaluate(() => {
+      const h = globalThis.artboarding!
+      const {frame, ratio, resolution} = h.editorStore.state
+      const ingredient = h.projectStore.state.ingredients.find(item => item.kind === 'import')!
+      h.actions.setRatio('3:2')
+      h.actions.setResolution('2K')
+      h.editorStore.set({prompt: `Something else entirely ![${ingredient.index}]`})
+      return {
+        frame,
+        ratio,
+        resolution,
+        index: ingredient.index,
+        name: ingredient.name,
+        ingredients: h.projectStore.state.ingredients.length,
+        layers: h.projectStore.state.layers.length,
+      }
+    })
+    const count = requests.length
+    defer = true
+    await page.click(`[data-testid="ingredient"][data-index="${before.index}"] button`, {button: 'right'})
+    await page.waitForSelector('[role="menu"][aria-label="Collection context menu"]')
+    await button('Extract subject')
+    for (let i = 0; i < 200 && pending.length < 1; i++) {
+      await Bun.sleep(10)
+    }
+    // While it runs, a placeholder shaped like the requested ratio stands where the result will appear.
+    const placeholder = (await page.waitForSelector('[data-testid="transform-job"][data-status="running"]'))!
+    const box = (await placeholder.boundingBox())!
+    assert.ok(Math.abs(box.width / box.height - 1.5) < 0.05, `The placeholder has the requested ratio: ${box.width} × ${box.height}`)
+    assert.equal(await page.$('[data-testid="job-overlay"]'), null, 'A transform has no overlay on the canvas')
+    await release()
+    await page.waitForFunction(expected => globalThis.artboarding!.projectStore.state.ingredients.length === expected && !globalThis.artboarding!.editorStore.state.jobs.length, {}, before.ingredients + 1)
+    assert.equal(requests.length, count + 1)
+    const request = requests.at(-1)!
+    assert.equal(request.prompt, 'Extract the subject of this image in high quality on a neutral background')
+    assert.equal(request.model, 'google/gemini-nano-banana-2.1')
+    assert.equal(request.aspect_ratio, '3:2')
+    assert.equal(request.resolution, '2K')
+    assert.equal(request.input_references.length, 1, 'The collection image is the only input image')
+    const result = await page.evaluate(() => {
+      const h = globalThis.artboarding!
+      const ingredient = h.projectStore.state.ingredients.at(-1)!
+      return {
+        kind: ingredient.kind,
+        name: ingredient.name,
+        layers: h.projectStore.state.layers.length,
+        prompt: h.editorStore.state.prompt,
+      }
+    })
+    assert.equal(result.kind, 'generated')
+    assert.equal(result.name, `Extract subject · ${before.name}`)
+    assert.equal(result.layers, before.layers, 'A transform adds no layer')
+    assert.equal(result.prompt, `Something else entirely ![${before.index}]`, 'A transform leaves the prompt alone')
+    assert.equal(await page.$('[data-testid="transform-job"]'), null)
+    await page.evaluate(restore => globalThis.artboarding!.editorStore.set({
+      ...restore,
+      prompt: 'A localized detail repair',
+    }), {
+      frame: before.frame,
+      ratio: before.ratio,
+      resolution: before.resolution,
+    })
   })
   await check('Hovering a collection item shows a rich tooltip, unrolls cropped pictures and points out every use', async () => {
     // The revision that is not shown right now is buried in the revision selector.

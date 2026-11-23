@@ -18,35 +18,79 @@ export type Asset = {
 
 type AssetListener = () => void
 type ReleaseListener = (id: string) => void
+type AssetEntry = {
+  blob: Blob
+  decoded?: DecodedImage
+  id?: string
+}
 
 export class AssetRegistry {
   readonly #assets = new Map<string, Asset>
   readonly #listeners = new Set<AssetListener>
   readonly #pins = new Map<string, number>
   readonly #releaseListeners = new Set<ReleaseListener>
-  async add(blob: Blob, decoded?: DecodedImage, id: string = createId()) {
-    if (this.#assets.has(id)) {
-      const existing = this.#assets.get(id)!
-      if (existing.blob === blob) {
-        return existing
-      }
-      throw new Error('Asset identifiers are immutable; import must allocate a fresh ID.')
-    }
-    const image = decoded ?? await decodeImage(blob)
-    const asset: Asset = {
-      id,
-      addedAt: performance.now(),
+  async add(blob: Blob, decoded?: DecodedImage, id?: string) {
+    const [asset] = await this.addAll([{
       blob,
-      bitmap: image.bitmap,
-      width: image.width,
-      height: image.height,
-      url: URL.createObjectURL(blob),
-    }
-    this.#assets.set(id, asset)
-    for (const listener of this.#listeners) {
-      listener()
-    }
+      decoded,
+      id,
+    }])
     return asset
+  }
+
+  /**
+   * Adds several images at once and notifies listeners a single time, so restoring a project with many images re-renders once instead of once per image.
+   * Nothing is added if any image fails to decode.
+   */
+  async addAll(entries: ReadonlyArray<AssetEntry>) {
+    /** the blob each ID stands for, including IDs repeated within this call */
+    const blobs = new Map<string, Blob>
+    const prepared = entries.map(entry => {
+      const id = entry.id ?? createId()
+      const blob = this.#assets.get(id)?.blob ?? blobs.get(id)
+      if (blob && blob !== entry.blob) {
+        throw new Error('Asset identifiers are immutable; import must allocate a fresh ID.')
+      }
+      const fresh = !blob
+      blobs.set(id, entry.blob)
+      return {
+        ...entry,
+        id,
+        fresh,
+      }
+    })
+    const settled = await Promise.allSettled(prepared.map(entry => (entry.fresh ? entry.decoded ?? decodeImage(entry.blob) : undefined)))
+    const failure = settled.find(outcome => outcome.status === 'rejected')
+    if (failure) {
+      for (const [index, outcome] of settled.entries()) {
+        // Bitmaps handed in by the caller stay the caller’s to close.
+        if (outcome.status === 'fulfilled' && outcome.value && !prepared[index].decoded) {
+          outcome.value.bitmap.close()
+        }
+      }
+      throw failure.reason
+    }
+    for (const [index, entry] of prepared.entries()) {
+      const image = (settled[index] as PromiseFulfilledResult<DecodedImage | undefined>).value
+      if (!image) {
+        continue
+      }
+      this.#assets.set(entry.id, {
+        id: entry.id,
+        addedAt: performance.now(),
+        blob: entry.blob,
+        bitmap: image.bitmap,
+        width: image.width,
+        height: image.height,
+        url: URL.createObjectURL(entry.blob),
+      })
+    }
+    if (prepared.some(entry => entry.fresh)) {
+      for (const listener of this.#listeners) {
+        listener()
+      }
+    }
+    return prepared.map(entry => this.#assets.get(entry.id)!)
   }
 
   get(id: string) {

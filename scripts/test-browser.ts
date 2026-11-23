@@ -1984,6 +1984,49 @@ try {
     }
     assert.equal(requests.length, requestsBefore)
   })
+  await check('A project with more images than React allows nested updates restores and reopens', async () => {
+    const count = 64
+    await page.evaluate(async count => {
+      const h = globalThis.artboarding!
+      await h.newProject()
+      const files = await Promise.all(Array.from({length: count}, async (_, index) => {
+        const canvas = new OffscreenCanvas(24, 16)
+        const context = canvas.getContext('2d')!
+        context.fillStyle = `hsl(${index * 360 / count} 80% 50%)`
+        context.fillRect(0, 0, 24, 16)
+        return new File([await canvas.convertToBlob({type: 'image/png'})], `image ${index}.png`, {type: 'image/png'})
+      }))
+      await h.actions.importLayers(files)
+      await h.flushAutosave()
+    }, count)
+    const restored = () => page.evaluate(() => {
+      const h = globalThis.artboarding!
+      return {
+        paused: h.persistenceStore.state.paused,
+        error: h.persistenceStore.state.error,
+        layers: h.projectStore.state.layers.length,
+        ingredients: h.projectStore.state.ingredients.length,
+        tiles: document.querySelectorAll('[data-testid="ingredient"]').length,
+      }
+    })
+    const expected = {
+      paused: false,
+      error: '',
+      layers: count,
+      ingredients: count,
+      tiles: count,
+    }
+    await page.reload({waitUntil: 'networkidle0'})
+    await ready(page)
+    await settle()
+    assert.deepEqual(await restored(), expected, 'Autosave restores every image')
+    await page.evaluate(async () => {
+      const h = globalThis.artboarding!
+      await h.openPortableProject(new Blob([await h.serializeProject()], {type: 'application/json'}))
+    })
+    await settle()
+    assert.deepEqual(await restored(), expected, 'A portable project with as many images opens')
+  })
   await check('Explicit New project remains empty after reload', async () => {
     await page.setViewport({
       width: 1600,

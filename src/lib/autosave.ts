@@ -127,9 +127,12 @@ async function restore() {
     ...entry,
     image: await decodeImage(entry.blob),
   })))
-  for (const entry of decoded) {
-    await assets.add(entry.blob, entry.image, entry.id)
-  }
+  // All at once: one re-render instead of one per image, which React would take for an endless update loop in larger projects.
+  await assets.addAll(decoded.map(entry => ({
+    blob: entry.blob,
+    decoded: entry.image,
+    id: entry.id,
+  })))
   projectStore.reset(await rebuildThumbnails(document))
   editorStore.set({
     ...editor,

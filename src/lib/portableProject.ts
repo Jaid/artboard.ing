@@ -129,9 +129,7 @@ export async function openPortableProject(file: Blob | File) {
       }))} : {},
     })),
   }
-  for (const entry of staged) {
-    await assets.add(entry.blob, entry.decoded, entry.id)
-  }
+  await assets.addAll(staged)
   const hydrated = await rebuildThumbnails(newDocument)
   if (!unchanged()) {
     throw new Error('The workspace changed while the project was opening. Your edits were preserved.')

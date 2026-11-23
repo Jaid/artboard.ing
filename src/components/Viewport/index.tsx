@@ -12,6 +12,7 @@ import {getDroppedIngredient, isIngredientDrag} from '#src/lib/collectionDrag.ts
 import {useHoveredCollectionAssetId} from '#src/lib/collectionHover.ts'
 import {findLayerAt, renderRegion} from '#src/lib/composite.ts'
 import {openContextMenu} from '#src/lib/contextMenu.ts'
+import {editable} from '#src/lib/editable.ts'
 import {getContentRegion} from '#src/lib/generationRegion.ts'
 import {rectCenter, rectContains, rectFromCenter} from '#src/lib/geometry.ts'
 import {corners, getSnapTargets, moveRectWithSnapping, resizeFrameFromEdge, resizeRectFromCorner} from '#src/lib/interaction.ts'
@@ -160,7 +161,6 @@ export default function Viewport() {
       }
     }
     element.addEventListener('wheel', wheel, {passive: false})
-    const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || Boolean(target.closest('input, textarea, select, .monaco-editor')))
     const down = (event: KeyboardEvent) => {
       if (event.code === 'Space' && !editable(event.target)) {
         event.preventDefault()
@@ -491,7 +491,7 @@ export default function Viewport() {
   >
     <canvas className={css.scene} aria-hidden data-testid='scene' ref={canvasRef} />
     {outlined.map(layer => <LayerOutline key={layer.id} layer={layer} masked={layers[0]?.id !== layer.id} transform={layer.id === selectedLayerId && tool === 'image' && isLayerTransformable(layer, layers)} view={view} />)}
-    {jobs.map(job => job.target === 'canvas' && <JobOverlay key={job.id} job={job} rect={toScreenRect(view, job.rect)} />)}
+    {[...Map.groupBy(jobs.filter(job => job.target === 'canvas'), job => job.layerId)].map(([layerId, group]) => <JobOverlay key={layerId} jobs={group} rect={toScreenRect(view, group[0].rect)} />)}
     {tool !== 'mask' && frameEnabled && <div className={clsx(css.frame, handles && css.handlesVisible, editor.generationHover && css.charged, dragKind?.startsWith('frame') && css.activeFrame)} data-testid='frame' style={rectStyle(frameScreen)}>
       {tool === 'frame' && !frameLocked && <>
         {corners.map(corner => <div key={corner} className={clsx(css.handle, css[corner])} data-corner={corner} title='Resize frame; aspect ratio stays locked' />)}

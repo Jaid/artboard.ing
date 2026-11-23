@@ -22,7 +22,7 @@ export const persistenceStore = new Store({
   error: '',
 })
 export const getPersistedEditorState = (): PersistedEditorState => {
-  const {frame, frameEnabled, layersPanelOpen, modelId, prompt, quality, ratio, resolution, view, exportMode, exportScale, demoMode} = editorStore.state
+  const {frame, frameEnabled, layersPanelOpen, modelId, prompt, quality, ratio, resolution, shots, view, exportMode, exportScale, demoMode} = editorStore.state
   return {
     frame,
     frameEnabled,
@@ -32,6 +32,7 @@ export const getPersistedEditorState = (): PersistedEditorState => {
     quality,
     ratio,
     resolution,
+    shots,
     view,
     exportMode,
     exportScale,
@@ -150,6 +151,9 @@ async function restore() {
   }
   if (explicitQueryKeys.has('quality')) {
     editorStore.set({quality: model.normalizeQuality(queryParameters.quality) ?? ''})
+  }
+  if (explicitQueryKeys.has('shots')) {
+    editorStore.set({shots: queryParameters.shots})
   }
   return true
 }

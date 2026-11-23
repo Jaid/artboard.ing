@@ -31,6 +31,9 @@ export type GenerationEvidence = {
   resolution: string
 }
 
+/** the request capture of a generated collection image; transforms have no frame, because their result lands in the collection */
+export type IngredientEvidence = Omit<GenerationEvidence, 'frame'> & Partial<Pick<GenerationEvidence, 'frame'>>
+
 /** cached registration of a generated output against its captured canvas input */
 export type LayerAlignment = Placement & {
   /** whether the registration is reliable enough to move the content; otherwise the layer stays in place */
@@ -80,6 +83,8 @@ export type Ingredient = {
   /** the shown image; while a rotation or flip is applied, it holds the transformed pixels of `sourceAssetId` */
   assetId: string
   createdAt: number
+  /** how a generation came to be; its output is the original image, before any rotation or flip */
+  evidence?: IngredientEvidence
   /** flip applied after the rotation, along the axes of the rotated image; absent means none */
   flip?: Exclude<Flip, 'none'>
   id: string
@@ -115,8 +120,12 @@ export type JobStatus = 'failed' | 'running'
 
 /** where the result of a job lands */
 export type JobTarget = {
-  /** the generated layer this job adds a revision to, for rerolls */
-  layerId?: string
+  /**
+   * the generated layer the result lands in: an existing one gets another revision, otherwise the layer is created with this ID
+   *
+   * The shots of one generation share it, so whichever finishes first creates the layer and the others become its alternatives. Rerolls use the ID of the rerolled layer.
+   */
+  layerId: string
   /** the captured frame the result is placed in */
   rect: Rect
   target: 'canvas'
@@ -170,6 +179,8 @@ export type EditorState = {
   selectedLayerId: string | null
   /** USD spent in this browser session */
   sessionCost: number
+  /** images requested per click on Generate (and per reroll), 1–8; they land in one layer as alternatives */
+  shots: number
   tool: 'frame' | 'image' | 'mask'
   view: View
 }
@@ -216,6 +227,7 @@ export const createInitialEditorState = (): EditorState => ({
   resolution: initialModel.normalizeResolution(queryParameters.resolution),
   selectedLayerId: null,
   sessionCost: 0,
+  shots: queryParameters.shots,
   view: {
     x: 0,
     y: 0,

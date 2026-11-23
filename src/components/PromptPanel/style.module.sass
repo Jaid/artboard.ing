@@ -102,6 +102,70 @@ $borderLight: #e4e4e4
     outline: 2px solid oklch(86% 0.17 85 / 60%)
     outline-offset: 1px
 
+// A customizable select keeps native semantics and keyboard handling while its options show model icons.
+.modelSelect, .modelSelect::picker(select)
+  appearance: base-select
+
+.modelSelect
+  display: flex
+  align-items: center
+  > button
+    display: flex
+    flex: 1
+    min-width: 0
+  selectedcontent
+    display: flex
+    flex: 1
+    align-items: center
+    gap: 7px
+    min-width: 0
+  &::picker-icon
+    color: var(--muted)
+  &::picker(select)
+    margin-top: 4px
+    padding: 4px
+    border: 1px solid rgb(255 255 255 / 12%)
+    border-radius: 9px
+    color: var(--text)
+    background: #101012
+    box-shadow: 0 12px 32px rgb(0 0 0 / 50%)
+    @include light
+      border-color: rgb(0 0 0 / 14%)
+      background: #fdfdfc
+      box-shadow: 0 12px 32px rgb(0 0 0 / 14%)
+  optgroup
+    padding: 6px 8px 2px
+    font-size: 11px
+    font-weight: 500
+    color: var(--muted)
+  option
+    display: flex
+    align-items: center
+    gap: 7px
+    padding: 5px 8px
+    border-radius: 6px
+    font-size: 13px
+    font-weight: 400
+    color: var(--text)
+    &:hover, &:focus-visible
+      outline: 0
+      background: rgb(255 255 255 / 8%)
+      @include light
+        background: rgb(0 0 0 / 6%)
+    &:checked
+      background: oklch(86% 0.17 85 / 14%)
+    &::checkmark
+      order: 1
+      margin-left: auto
+      color: oklch(86% 0.17 85)
+      @include light
+        color: oklch(55% 0.17 60)
+
+.optionTitle
+  overflow: hidden
+  white-space: nowrap
+  text-overflow: ellipsis
+
 .generateRow
   display: flex
   align-items: center
@@ -120,6 +184,12 @@ $borderLight: #e4e4e4
   width: 38px
   height: 38px
   border-radius: 10px
+
+.generateRow .shots
+  min-width: 0
+  height: 38px
+  border-radius: 10px
+  font-variant-numeric: tabular-nums
 
 .generate
   position: relative
@@ -219,6 +289,8 @@ $borderLight: #e4e4e4
   .generateRow .frameToggle
     width: 32px
     height: 32px
+  .generateRow .shots
+    height: 32px
   .meta
     font-size: 9px
 
@@ -243,6 +315,8 @@ $borderLight: #e4e4e4
     height: 29px
   .generateRow .frameToggle
     width: 29px
+    height: 29px
+  .generateRow .shots
     height: 29px
   .meta
     font-size: 8px

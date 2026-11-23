@@ -5,6 +5,7 @@ import readPermalink, {parseNumber} from 'read-permalink'
 import {defaultFeatherMethodId, featherMethodIds, isFeatherMethodId, parseFeatherMethodId} from '#src/lib/feather/featherMethodIds.ts'
 import {normalizeOpenRouterHost, normalizeOpenRouterKey, openRouterOrigin} from '#src/lib/openRouterAccess.ts'
 import {isRatioString} from '#src/lib/ratio.ts'
+import {normalizeShots} from '#src/lib/shots.ts'
 
 const optionalString = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '')
 const fraction = (value: unknown) => {
@@ -39,6 +40,8 @@ const ratioList = (value: unknown) => {
   }
   return ratios
 }
+/** comma-separated IDs, trimmed and without duplicates */
+const idList = (value: unknown) => [...new Set(optionalString(value).split(',').map(id => id.trim()).filter(Boolean))]
 const defaultTransparentColor = '#333'
 /** any CSS color; bare hex digits like “333” get a “#”, since a literal “#” in a URL starts the fragment */
 const cssColor = (value: unknown) => {
@@ -61,6 +64,8 @@ const queryParameters = readPermalink(typeof location === 'undefined' ? '' : loc
     resolution: '',
     /** quality level for models that support it; empty uses the model default */
     quality: '',
+    /** images per click on Generate, 1–8; they land in one layer as alternatives */
+    shots: 1,
     /** initial prompt text, overrides the stored prompt */
     prompt: '',
     /** default feathering for new generated layers, 0–1 or 0–100 */
@@ -77,6 +82,8 @@ const queryParameters = readPermalink(typeof location === 'undefined' ? '' : loc
     openrouter_key: undefined as false | string | undefined,
     /** aspect ratios of the model_id model like “1,3/4,4/3,16/9,9/16”; empty inherits them from a matching catalog model or uses a common set */
     ratios: '',
+    /** model IDs like “gpt-image-2.6-sunburst,gemini-3.1-flash-image” that the picker is limited to, in this order; IDs the catalog lacks are added like model_id */
+    models: '',
     /** color that stands in for empty canvas in generation inputs, like “555”, “%23555” or “gray” */
     transparent_color: defaultTransparentColor,
   },
@@ -85,6 +92,7 @@ const queryParameters = readPermalink(typeof location === 'undefined' ? '' : loc
     ratio: String,
     resolution: optionalString,
     quality: optionalString,
+    shots: normalizeShots,
     prompt: optionalString,
     feather: fraction,
     area: fraction,
@@ -93,6 +101,7 @@ const queryParameters = readPermalink(typeof location === 'undefined' ? '' : loc
     openrouter_host: normalizeOpenRouterHost,
     openrouter_key: normalizeOpenRouterKey,
     ratios: ratioList,
+    models: idList,
     transparent_color: cssColor,
   },
 }})

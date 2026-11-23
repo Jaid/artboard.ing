@@ -1,4 +1,4 @@
-import type {GenerationEvidence, ProjectDocument} from './state.ts'
+import type {IngredientEvidence, ProjectDocument} from './state.ts'
 
 import {advanceWorkspaceEpoch} from './actions.ts'
 import {assets} from './assets.ts'
@@ -94,9 +94,16 @@ export async function openPortableProject(file: Blob | File) {
     throw new Error('The workspace changed while the project was opening. Your edits were preserved; open the file again when ready.')
   }
   const remap = new Map(staged.map(entry => [entry.oldId, entry.id]))
-  const remapEvidence = (evidence: GenerationEvidence): GenerationEvidence => ({
+  // A generation’s layer and collection entry share one capture, which keeps sharing its new ID.
+  const evidenceIds = new Map<string, string>
+  const remapEvidenceId = (id: string) => {
+    const remapped = evidenceIds.get(id) ?? createId()
+    evidenceIds.set(id, remapped)
+    return remapped
+  }
+  const remapEvidence = <Evidence extends IngredientEvidence>(evidence: Evidence): Evidence => ({
     ...evidence,
-    id: createId(),
+    id: remapEvidenceId(evidence.id),
     outputAssetId: remap.get(evidence.outputAssetId)!,
     canvasAssetId: evidence.canvasAssetId ? remap.get(evidence.canvasAssetId)! : undefined,
     referenceAssetIds: evidence.referenceAssetIds.map(id => remap.get(id)!),
@@ -108,6 +115,7 @@ export async function openPortableProject(file: Blob | File) {
       id: createId(),
       assetId: remap.get(item.assetId)!,
       ...item.sourceAssetId ? {sourceAssetId: remap.get(item.sourceAssetId)!} : {},
+      ...item.evidence ? {evidence: remapEvidence(item.evidence)} : {},
     })),
     layers: document.layers.map(layer => ({
       ...layer,

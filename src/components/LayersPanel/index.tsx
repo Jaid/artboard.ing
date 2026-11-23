@@ -1,10 +1,11 @@
 import type {Layer} from '#src/lib/state.ts'
 
 import clsx from 'clsx'
-import {ChevronDown, EyeOff, Layers, Lock} from 'lucide-react'
+import {ChevronDown, EyeOff, Layers} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
 import IconButton from '#component/IconButton'
+import ModelIcon from '#component/ModelIcon'
 import {selectLayer, updateLayer} from '#src/lib/actions.ts'
 import {adjustmentKeys, toGamma} from '#src/lib/adjustments/index.ts'
 import {assets} from '#src/lib/assets.ts'
@@ -13,6 +14,7 @@ import {contentAwareStore, setContentAwareAlignment, supportsContentAwareAlignme
 import {openContextMenu} from '#src/lib/contextMenu.ts'
 import {getActiveAlignment} from '#src/lib/layerGeometry.ts'
 import {getMaskAlpha} from '#src/lib/mask.ts'
+import {describeModel} from '#src/lib/models/index.ts'
 import {getRevisionIndex, getRevisions, stepRevision} from '#src/lib/revisions.ts'
 import {defaultGeneratedMask, defaultImportedMask, editorStore, projectStore} from '#src/lib/state.ts'
 import {useStore} from '#src/lib/store/index.ts'
@@ -141,6 +143,14 @@ function TransformFields({layer}: {layer: Layer}) {
     <label className={css.checkbox}><input checked={locked} type='checkbox' onChange={event => setLocked(event.currentTarget.checked)} />Lock ratio</label>
   </div>
 }
+/** the model that generated the shown revision */
+function GenerationModel({modelId}: {modelId?: string}) {
+  if (!modelId) {
+    return 'generation'
+  }
+  const model = describeModel(modelId)
+  return <><ModelIcon icon={model.icon} size={10} /><span className={css.modelTitle} title={`Generated with ${model.title}`}>{model.title}</span></>
+}
 function LayerRow({layer, background, selected}: {
   background: boolean
   layer: Layer
@@ -217,7 +227,7 @@ function LayerRow({layer, background, selected}: {
             }
           }}
         /> : <button className={css.name} title={`${layer.name} · double-click to rename`} type='button' onClick={chooseImage} onDoubleClick={() => setRenaming(true)}>{layer.name}</button>}
-        <span className={css.subtitle}>{layer.kind === 'generated' ? <><Lock aria-hidden size={10} />generation</> : 'import'}{revisionCount > 1 && <RevisionSelector highlighted={revisionHighlighted} layer={layer} />}{rerolling && ' · rerolling…'}{background && ' · base'}{layer.evidence?.demo && ' · demo'}{getActiveAlignment(layer) && ' · aligned'}{layer.opacity !== undefined && ` · ${Math.round(layer.opacity * 100)}%`}{layer.adjustments && ' · adjusted'}</span>
+        <span className={css.subtitle}>{layer.kind === 'generated' ? <GenerationModel modelId={layer.modelId ?? layer.evidence?.modelId} /> : 'import'}{revisionCount > 1 && <RevisionSelector highlighted={revisionHighlighted} layer={layer} />}{rerolling && ' · rerolling…'}{background && ' · base'}{layer.evidence?.demo && ' · demo'}{getActiveAlignment(layer) && ' · aligned'}{layer.opacity !== undefined && ` · ${Math.round(layer.opacity * 100)}%`}{layer.adjustments && ' · adjusted'}</span>
       </div>
       {/* Hiding lives in the context menu; a hidden layer keeps a quick way back. */}
       {!layer.visible && <IconButton className={css.show} icon={EyeOff} size={14} title='Show layer' onClick={() => updateLayer(layer.id, {visible: true})} />}

@@ -3,11 +3,11 @@ import type {EditorState} from './state.ts'
 import {fitViewToContent, fitViewToFrame, isLayerTransformable, redo, removeLayer, selectLayer, setFrame, undo, updateLayer} from './actions.ts'
 import {persistenceStore} from './autosave.ts'
 import {routeDroppedFiles} from './drop.ts'
+import {editable} from './editable.ts'
 import {generate} from './generation.ts'
 import {editorStore, projectStore} from './state.ts'
 import {zoomBy} from './viewport.ts'
 
-const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(?:INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || Boolean(target.closest('.monaco-editor')))
 const toolKeys: Record<string, EditorState['tool']> = {
   v: 'frame',
   i: 'image',

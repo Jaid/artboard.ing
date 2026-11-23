@@ -23,7 +23,7 @@ export type ImageResult = {
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const imageDataPattern = /^data:image\/(?:jpeg|png|webp);base64,[+/0-9A-Za-z]+={0,2}$/
 
-/** Rebuild an allowlisted Image API request. Never forward arbitrary client provider options or remote URLs. */
+/** Builds the Image API request from its allowlisted fields only, failing before dispatch on anything the model does not support. Input images must be embedded; remote URLs are never sent. */
 export function validateImageRequest(value: unknown): ImageRequest {
   if (!record(value) || typeof value.model !== 'string' || typeof value.prompt !== 'string' || !value.prompt.trim() || value.prompt.length > 100_000) {
     throw new Error('A supported model and a nonempty prompt of at most 100,000 characters are required.')

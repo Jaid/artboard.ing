@@ -12,28 +12,46 @@ import {useElapsedSeconds} from '#src/lib/useElapsedSeconds.ts'
 import css from './style.module.sass'
 
 type Props = {
-  job: CanvasJob
+  /** the jobs whose results land in the same layer, like the shots of one generation; never empty */
+  jobs: ReadonlyArray<CanvasJob>
   /** screen rect */
   rect: Rect
 }
 
-const JobOverlay = ({job, rect}: Props) => {
-  const running = job.status === 'running'
-  const seconds = useElapsedSeconds(job.startedAt, running)
+const JobOverlay = ({jobs, rect}: Props) => {
+  const running = jobs.filter(job => job.status === 'running')
+  const failed = jobs.filter(job => job.status === 'failed')
+  const seconds = useElapsedSeconds(Math.min(...running.map(job => job.startedAt)), running.length > 0)
+  const models = [...new Set(running.map(job => getModel(job.modelId).title))].join(', ')
+  const {layerId, prompt, rect: frame} = jobs[0]
+  const cancel = () => {
+    for (const job of running) {
+      dismissJob(job.id)
+    }
+  }
+  const dismiss = () => {
+    for (const job of failed) {
+      dismissJob(job.id)
+    }
+  }
   const retry = () => {
-    dismissJob(job.id)
-    // A failed reroll is retried as a reroll as long as its layer exists.
-    if (job.layerId && getLayer(job.layerId)) {
-      void reroll(job.layerId)
+    dismiss()
+    // Once a sibling shot has landed, or for a failed reroll, the retry rerolls the layer with its captured inputs; otherwise it captures the frame again.
+    if (getLayer(layerId)) {
+      void reroll(layerId, failed.length)
       return
     }
     void generate({
-      frame: job.rect,
-      prompt: job.prompt,
+      frame,
+      prompt,
+    }, {
+      layerId,
+      shots: failed.length,
     })
   }
+  const error = failed[0]?.error ?? 'Generation failed'
   return <div
-    className={clsx(css.overlay, !running && css.failed)}
+    className={clsx(css.overlay, !running.length && css.failed)}
     data-overlay-control
     data-testid='job-overlay'
     style={{
@@ -42,22 +60,23 @@ const JobOverlay = ({job, rect}: Props) => {
       height: rect.height,
     }}
   >
-    {running && <>
+    {running.length > 0 && <>
       <div className={css.shimmer} />
       <div className={css.sparks} />
       <div className={css.scan} />
       <div className={css.ring} />
     </>}
-    <div className={css.panel}>
-      {running ? <>
+    <div className={css.panels}>
+      {running.length > 0 && <div className={css.panel}>
         <span className={css.spinner} />
-        <span className={css.text}>{getModel(job.modelId).title} · {seconds} s</span>
-        <button className={css.button} title='Cancel generation' type='button' onClick={() => dismissJob(job.id)}><X size={14} /></button>
-      </> : <>
-        <span className={css.error} title={job.error}>{job.error ?? 'Generation failed'}</span>
-        <button className={css.button} title='Retry with this frame and prompt' type='button' onClick={retry}><RotateCw size={14} /></button>
-        <button className={css.button} title='Dismiss' type='button' onClick={() => dismissJob(job.id)}><X size={14} /></button>
-      </>}
+        <span className={css.text}>{running.length > 1 && `${running.length} shots · `}{models} · {seconds} s</span>
+        <button className={css.button} title={running.length > 1 ? `Cancel ${running.length} generations` : 'Cancel generation'} type='button' onClick={cancel}><X size={14} /></button>
+      </div>}
+      {failed.length > 0 && <div className={css.panel}>
+        <span className={css.error} title={error}>{failed.length > 1 ? `${failed.length} shots failed: ${error}` : error}</span>
+        <button className={css.button} title={failed.length > 1 ? `Retry ${failed.length} shots with this frame and prompt` : 'Retry with this frame and prompt'} type='button' onClick={retry}><RotateCw size={14} /></button>
+        <button className={css.button} title='Dismiss' type='button' onClick={dismiss}><X size={14} /></button>
+      </div>}
     </div>
   </div>
 }

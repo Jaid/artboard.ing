@@ -1,4 +1,4 @@
-import type {Job} from '#src/lib/state.ts'
+import type {CanvasJob, Job} from '#src/lib/state.ts'
 import type {ComponentType} from 'react'
 
 import {afterEach, describe, expect, jest, mock, test} from 'bun:test'
@@ -7,6 +7,7 @@ import {act, cleanup, fireEvent, render} from '@testing-library/react'
 import {createElement} from 'react'
 
 import {setRatio} from '#src/lib/actions.ts'
+import {closeCollectionDialog, collectionDialogStore, openCollectionDialog} from '#src/lib/collectionDialog.ts'
 import {closeContextMenu, contextMenuStore, openCollectionMenu, openContextMenu} from '#src/lib/contextMenu.ts'
 import {closeExportDialog, exportDialogStore, openExportDialog} from '#src/lib/exporting.ts'
 import {getModel} from '#src/lib/models/index.ts'
@@ -55,6 +56,7 @@ const createTransformJob = (id: string, status: Job['status']): Job => ({
   ...status === 'failed' ? {error: 'Image API request failed (HTTP 402).'} : {},
 })
 const menuItems = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+const getDialog = (container: HTMLElement) => container.querySelector<HTMLDialogElement>('[data-testid="collection-dialog"]')!
 afterEach(() => {
   cleanup()
   jest.useRealTimers()
@@ -62,6 +64,7 @@ afterEach(() => {
     resetProject()
     editorStore.set(createInitialEditorState())
     closeContextMenu()
+    closeCollectionDialog()
     closeExportDialog()
   })
 })
@@ -89,16 +92,26 @@ describe('PromptPanel', () => {
     expect(getModel(editorStore.state.modelId).supportsRatio(editorStore.state.ratio)).toBe(true)
     expect(editorStore.state.ratio).toBe('9:20')
   })
-  test('the frame toggle sits right before the generate button', async () => {
+  test('the frame toggle and the shots dropdown sit right before the generate button', async () => {
     const {container} = await renderComponent('PromptPanel')
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="frame-toggle"]')!
-    expect(toggle.nextElementSibling?.getAttribute('data-testid')).toBe('generate')
+    expect(toggle.nextElementSibling?.getAttribute('data-testid')).toBe('shots-select')
+    expect(toggle.nextElementSibling?.nextElementSibling?.getAttribute('data-testid')).toBe('generate')
     expect(toggle.getAttribute('aria-pressed')).toBe('true')
     act(() => toggle.click())
     expect(editorStore.state.frameEnabled).toBe(false)
     expect(toggle.getAttribute('aria-pressed')).toBe('false')
     act(() => toggle.click())
     expect(editorStore.state.frameEnabled).toBe(true)
+  })
+  test('the shots dropdown offers 1 to 8 images per generation', async () => {
+    const {container} = await renderComponent('PromptPanel')
+    const select = container.querySelector<HTMLSelectElement>('[data-testid="shots-select"]')!
+    expect([...select.options].map(option => [option.value, option.textContent])).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map(count => [String(count), `${count}×`]))
+    expect(select.value).toBe('1')
+    fireEvent.change(select, {target: {value: '6'}})
+    expect(editorStore.state.shots).toBe(6)
+    expect(select.value).toBe('6')
   })
   test('project actions share the title row', async () => {
     const {container} = await renderComponent('PromptPanel')
@@ -231,6 +244,174 @@ describe('collection context menu', () => {
     await act(() => Promise.resolve())
     expect(projectStore.state.ingredients.map(item => item.index)).toEqual([2])
     expect(projectStore.state.nextIngredientIndex).toBe(3)
+  })
+})
+describe('JobOverlay', () => {
+  test('the shots of one layer share one overlay that sums them up and cancels or dismisses them together', async () => {
+    const shot = (id: string, status: Job['status']): Job => ({
+      id,
+      controller: new AbortController,
+      modelId: 'google/gemini-nano-banana-2.1',
+      prompt: 'A witch',
+      startedAt: Date.now(),
+      status,
+      target: 'canvas',
+      layerId: 'layer',
+      rect: createRect(100, 100),
+      ...status === 'failed' ? {error: 'Image API request failed (HTTP 402).'} : {},
+    })
+    const jobs = [shot('a', 'running'), shot('b', 'running'), shot('c', 'running'), shot('d', 'failed'), shot('e', 'failed')]
+    act(() => editorStore.set({jobs}))
+    const {default: JobOverlay} = await import('#src/components/JobOverlay/index.tsx')
+    const {container} = render(createElement(JobOverlay, {
+      jobs: jobs as Array<CanvasJob>,
+      rect: createRect(100, 100),
+    }))
+    expect(container.querySelectorAll('[data-testid="job-overlay"]')).toHaveLength(1)
+    expect(container.textContent).toContain('3 shots · Nano Banana 2.1 · 0 s')
+    expect(container.textContent).toContain('2 shots failed: Image API request failed (HTTP 402).')
+    act(() => container.querySelector<HTMLButtonElement>('[title="Cancel 3 generations"]')!.click())
+    expect(jobs.slice(0, 3).every(job => job.controller.signal.aborted)).toBe(true)
+    expect(editorStore.state.jobs.map(job => job.id)).toEqual(['d', 'e'])
+    act(() => container.querySelector<HTMLButtonElement>('[title="Dismiss"]')!.click())
+    expect(editorStore.state.jobs).toEqual([])
+  })
+})
+describe('collection dialog', () => {
+  test('clicking a tile shows its details with the very menu of its context menu and leaves the prompt alone', async () => {
+    act(() => {
+      resetProject({ingredients: [createIngredient(1, {name: 'Witch'})]})
+      editorStore.set({prompt: 'Keep me'})
+    })
+    const {container} = await renderComponent('Ingredients')
+    const details = await renderComponent('CollectionDialog')
+    const menu = await renderComponent('ContextMenu')
+    const tile = container.querySelector<HTMLElement>('[data-testid="ingredient"]')!
+    expect(tile.querySelector('button')?.getAttribute('aria-haspopup')).toBe('dialog')
+    act(() => tile.querySelector('button')!.click())
+    expect(collectionDialogStore.state.index).toBe(1)
+    expect(editorStore.state.prompt).toBe('Keep me')
+    const dialog = getDialog(details.container)
+    expect(dialog.open).toBe(true)
+    expect(dialog.querySelector('[data-testid="collection-dialog-image"]')?.getAttribute('src')).toBe('data:image/webp;base64,AAAA')
+    expect(dialog.querySelector('h2')?.textContent).toBe('1Witch')
+    // An import has no request capture.
+    expect(dialog.querySelector('[data-testid="collection-dialog-prompt"]')).toBeNull()
+    const dialogMenu = dialog.querySelector<HTMLElement>('[role="menu"]')!
+    expect(menuItems(dialogMenu).map(item => item.textContent)).toEqual(['Extract subject', 'Export', 'Delete'])
+    act(() => closeCollectionDialog())
+    expect(dialog.open).toBe(false)
+    expect(dialog.textContent).toBe('')
+    fireEvent.contextMenu(tile)
+    expect(menu.container.querySelector('[role="menu"]')!.innerHTML).toBe(dialogMenu.innerHTML)
+  })
+  test('a generation shows its prompt and inference details, found in its layer for entries without their own capture', async () => {
+    act(() => resetProject({
+      layers: [createLayer('generated', {
+        assetId: 'out-a',
+        kind: 'generated',
+        evidence: createEvidence('a', {
+          prompt: 'A witch on a broom',
+          compiledPrompt: 'A witch [image 2] on a broom',
+          canvasAssetId: 'canvas-a',
+          referenceAssetIds: ['reference-a'],
+          resolution: '2K',
+          quality: 'high',
+          cost: 0.025,
+        }),
+      })],
+      ingredients: [createIngredient(1, {
+        assetId: 'out-a',
+        kind: 'generated',
+        name: 'A witch on a broom',
+      })],
+    }))
+    const {container} = await renderComponent('CollectionDialog')
+    act(() => openCollectionDialog(1))
+    const dialog = getDialog(container)
+    expect(dialog.querySelector('[data-testid="collection-dialog-prompt"]')?.textContent).toBe('A witch on a broom')
+    expect(dialog.querySelector('details')?.textContent).toBe('Sent to the modelA witch [image 2] on a broom')
+    const inference = Object.fromEntries([...dialog.querySelectorAll('[data-testid="collection-dialog-inference"] dt')].map(term => [term.textContent, term.nextElementSibling?.textContent]))
+    expect(inference).toMatchObject({
+      Model: 'Nano Banana 2.1',
+      Ratio: '1:1',
+      Resolution: '2K',
+      Quality: 'high',
+      Cost: '$ 0.0250',
+    })
+    // The captured canvas comes first, like in the prompt the model received.
+    expect([...dialog.querySelectorAll('figcaption')].map(caption => caption.parentElement!.title)).toEqual(['image 1: the canvas inside the frame, ![0]', 'image 2: a collection image'])
+  })
+  test('the frame view shows a large live view and offers Export…', async () => {
+    const {container} = await renderComponent('CollectionDialog')
+    act(() => openCollectionDialog(0))
+    const dialog = getDialog(container)
+    expect(dialog.open).toBe(true)
+    expect(dialog.querySelector('canvas[data-testid="collection-dialog-image"]')).not.toBeNull()
+    const items = menuItems(dialog)
+    expect(items.map(item => item.textContent)).toEqual(['Export…'])
+    expect(items[0].disabled).toBe(true)
+  })
+  test('arrow keys go through the tiles: left and right step, up jumps to the frame view and down to the last item', async () => {
+    act(() => resetProject({
+      ingredients: [createIngredient(2), createIngredient(5), createIngredient(9)],
+      nextIngredientIndex: 10,
+    }))
+    const {container} = await renderComponent('CollectionDialog')
+    const dialog = getDialog(container)
+    const press = (key: string, target: Element = dialog, init: KeyboardEventInit = {}) => act(() => {
+      target.dispatchEvent(new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      }))
+    })
+    act(() => openCollectionDialog(5))
+    press('ArrowRight')
+    expect(collectionDialogStore.state.index).toBe(9)
+    press('ArrowRight')
+    expect(collectionDialogStore.state.index).toBe(0)
+    expect(dialog.querySelector('canvas[data-testid="collection-dialog-image"]')).not.toBeNull()
+    press('ArrowLeft')
+    expect(collectionDialogStore.state.index).toBe(9)
+    press('ArrowUp')
+    expect(collectionDialogStore.state.index).toBe(0)
+    press('ArrowDown')
+    expect(collectionDialogStore.state.index).toBe(9)
+    press('ArrowLeft', dialog, {shiftKey: true})
+    expect(collectionDialogStore.state.index).toBe(9)
+    // Dropdowns keep their arrow keys, and so does the menu for moving between its items.
+    press('ArrowLeft', dialog.querySelector('select')!)
+    expect(collectionDialogStore.state.index).toBe(9)
+    const item = menuItems(dialog)[0]
+    act(() => item.focus())
+    press('ArrowDown', item)
+    expect(collectionDialogStore.state.index).toBe(9)
+    expect(document.activeElement).toBe(menuItems(dialog)[1])
+    press('ArrowLeft', item)
+    expect(collectionDialogStore.state.index).toBe(5)
+  })
+  test('actions close the dialog, and so does a removed entry', async () => {
+    act(() => resetProject({
+      ingredients: [createIngredient(1), createIngredient(2)],
+      nextIngredientIndex: 3,
+    }))
+    const {container} = await renderComponent('CollectionDialog')
+    act(() => openCollectionDialog(1))
+    act(() => menuItems(getDialog(container)).find(item => item.textContent === 'Delete')!.click())
+    await act(() => Promise.resolve())
+    expect(projectStore.state.ingredients.map(item => item.index)).toEqual([2])
+    expect(collectionDialogStore.state.index).toBeNull()
+    expect(getDialog(container).open).toBe(false)
+    act(() => openCollectionDialog(2))
+    expect(getDialog(container).open).toBe(true)
+    act(() => resetProject())
+    expect(collectionDialogStore.state.index).toBeNull()
+    expect(getDialog(container).open).toBe(false)
+    act(() => openCollectionDialog(0))
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Close details"]')!.click())
+    expect(collectionDialogStore.state.index).toBeNull()
   })
 })
 describe('LayersPanel', () => {

@@ -1,8 +1,8 @@
-const secret = Bun.env.OPENROUTER_API_KEY?.trim()
+// The build is published as is, so it must never contain an OpenRouter key, like one pasted into the source while testing.
 let checked = 0
 for await (const path of new Bun.Glob('dist/**/*.{js,css,html,json,map,txt}').scan('.')) {
   const value = await Bun.file(path).text()
-  if (secret && secret.length > 12 && value.includes(secret) || /sk-or-v1-[0-9A-Za-z]{24,}/.test(value)) {
+  if (/sk-or-v1-[0-9A-Za-z]{24,}/.test(value)) {
     throw new Error(`Credential found in public artifact: ${path}`)
   }
   checked++

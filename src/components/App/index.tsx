@@ -1,6 +1,7 @@
 import {useEffect, useSyncExternalStore} from 'react'
 import {Group, Panel, Separator} from 'react-resizable-panels'
 
+import CollectionDialog from '#component/CollectionDialog'
 import ContextMenu from '#component/ContextMenu'
 import DropOverlay from '#component/DropOverlay'
 import ExportDialog from '#component/ExportDialog'
@@ -10,7 +11,6 @@ import PromptPanel from '#component/PromptPanel'
 import Viewport from '#component/Viewport'
 import ZoomIndicator from '#component/ZoomIndicator'
 import {fitViewToFrame, setModel} from '#src/lib/actions.ts'
-import {refreshApiStatus} from '#src/lib/apiKey.ts'
 import {persistenceStore, startAutosave} from '#src/lib/autosave.ts'
 import {installDebugHandle} from '#src/lib/debug.ts'
 import {refreshImageCatalog} from '#src/lib/models/index.ts'
@@ -32,7 +32,6 @@ async function initialize() {
   if (import.meta.env.DEV || new URLSearchParams(location.search).get('debug') === 'true') {
     installDebugHandle()
   }
-  void refreshApiStatus()
   void refreshImageCatalog().then(() => setModel(editorStore.state.modelId))
   const restored = await startAutosave()
   await viewportReady
@@ -66,6 +65,7 @@ export default function App() {
     </div>
     {!hydrated && <div className={css.loading} role='status'>Opening your workspace…</div>}
     <ContextMenu />
+    <CollectionDialog />
     <ExportDialog />
   </div>
 }

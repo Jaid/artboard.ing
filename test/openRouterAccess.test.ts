@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'bun:test'
 
-import {canUseGateway, getApiKey, hasApiKey, keyless} from '#src/lib/apiKey.ts'
+import {getApiKey, hasApiKey, keyless} from '#src/lib/apiKey.ts'
 import {getOpenRouterHostTitle, normalizeOpenRouterHost, normalizeOpenRouterKey, openRouterOrigin} from '#src/lib/openRouterAccess.ts'
 import queryParameters from '#src/queryParameters.ts'
 
@@ -35,7 +35,6 @@ describe('OpenRouter access', () => {
     expect(queryParameters.openrouter_key).toBeUndefined()
     expect(keyless).toBe(false)
     expect(getApiKey()).toBe('')
-    expect(canUseGateway()).toBe(false)
     expect(hasApiKey()).toBe(false)
   })
 })

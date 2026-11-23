@@ -1,4 +1,5 @@
 import type {RatioString} from '#src/lib/ratio.ts'
+import type {ModelIcon} from '../modelTraits.ts'
 
 export type GenerationSettings = {
   quality?: string
@@ -12,6 +13,7 @@ export type GenerationSettings = {
  */
 export abstract class ImageModel {
   abstract readonly aspectRatios: ReadonlyArray<RatioString>
+  abstract readonly icon: ModelIcon | undefined
   abstract readonly id: string
   abstract readonly maxReferences: number
   /** short hint shown in the model picker */

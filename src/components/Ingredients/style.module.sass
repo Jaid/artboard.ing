@@ -75,7 +75,7 @@
     right: 1px
     border-left: 3px solid var(--arrow)
 
-.insert
+.open
   display: block
   width: 100%
   height: 100%
@@ -95,11 +95,7 @@
   &:focus-visible
     outline-offset: -2px
 
-.number
-  position: absolute
-  z-index: 1
-  left: 4px
-  bottom: 4px
+@mixin number
   min-width: 18px
   padding: 1px 5px
   border-radius: 5px
@@ -113,6 +109,19 @@
   text-align: center
   @include light
     color: white
+
+.number
+  @include number
+  position: absolute
+  z-index: 1
+  left: 4px
+  bottom: 4px
+
+// a number outside of its tile, like in tooltips and the collection dialog
+.badge
+  @include kind
+  @include number
+  flex: none
 
 // the complete picture of a cropped thumbnail, unrolled in place while the tile is hovered
 .unroll
@@ -157,14 +166,10 @@
     display: flex
 
 .tooltipTitle
-  @include kind
   display: flex
   align-items: center
   gap: 7px
   min-width: 0
-  .number
-    position: static
-    flex: none
   strong
     overflow: hidden
     text-overflow: ellipsis

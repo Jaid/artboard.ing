@@ -1,9 +1,11 @@
 import type {ImageRequest} from './imageApi.ts'
 import type {ImageModel} from './models/index.ts'
+import type {ModelControlValues, ModelHook} from './models/modelTraits.ts'
 import type {ImageModelV4, ImageModelV4CallOptions, ImageModelV4File, ImageModelV4Result} from '@ai-sdk/provider'
 
 import {generateImage} from 'ai'
 
+import {findModelTraits} from './models/modelTraits.ts'
 import {getPromptPartsFactory} from './promptParts.ts'
 
 type JsonRecord = Record<string, unknown>
@@ -86,12 +88,23 @@ const withPromptRatio = (modelId: string, prompt: string, aspectRatio?: string) 
   return `${prompt}\n\nAspect ratio: ${aspectRatio} (${orientation})`
 }
 const getBodyOptions = (options: ImageModelV4CallOptions) => (options.providerOptions[aiEndpointProvider] ?? {}) as JsonRecord
-/** OpenAI-style images endpoint: /images/generations for plain prompts, /images/edits once input images are attached */
-const createImagesEndpointModel = ({baseUrl, headers, modelId}: {
+const getControlValues = (options: ImageModelV4CallOptions): ModelControlValues => {
+  const {quality, resolution} = getBodyOptions(options)
+  return {
+    aspectRatio: options.aspectRatio,
+    quality: typeof quality === 'string' ? quality : undefined,
+    resolution: typeof resolution === 'string' ? resolution : undefined,
+  }
+}
+const passThrough: ModelHook = body => body
+type EndpointModelConfig = {
   baseUrl: string
   headers: Record<string, string>
+  hook?: ModelHook
   modelId: string
-}): ImageModelV4 => ({
+}
+/** OpenAI-style images endpoint: /images/generations for plain prompts, /images/edits once input images are attached */
+const createImagesEndpointModel = ({baseUrl, headers, hook = passThrough, modelId}: EndpointModelConfig): ImageModelV4 => ({
   specificationVersion: 'v4',
   provider: aiEndpointProvider,
   modelId,
@@ -99,7 +112,7 @@ const createImagesEndpointModel = ({baseUrl, headers, modelId}: {
   doGenerate: async options => {
     const title = `${modelId} image generation`
     const {abortSignal, aspectRatio, files = [], prompt = ''} = options
-    const fields: JsonRecord = {
+    const fields = hook({
       model: modelId,
       // With input images attached, the output already follows their shape.
       prompt: files.length ? prompt : withPromptRatio(modelId, prompt, aspectRatio),
@@ -107,7 +120,7 @@ const createImagesEndpointModel = ({baseUrl, headers, modelId}: {
       response_format: 'b64_json',
       ...aspectRatio ? {aspect_ratio: aspectRatio} : {},
       ...getBodyOptions(options),
-    }
+    }, getControlValues(options))
     let response: Response
     if (files.length) {
       const form = new FormData
@@ -152,11 +165,7 @@ const createImagesEndpointModel = ({baseUrl, headers, modelId}: {
   },
 })
 /** chat completion endpoint that returns generated images in message.images, used for Gemini image models */
-const createChatImageModel = ({baseUrl, headers, modelId}: {
-  baseUrl: string
-  headers: Record<string, string>
-  modelId: string
-}): ImageModelV4 => ({
+const createChatImageModel = ({baseUrl, headers, hook = passThrough, modelId}: EndpointModelConfig): ImageModelV4 => ({
   specificationVersion: 'v4',
   provider: aiEndpointProvider,
   modelId,
@@ -172,7 +181,7 @@ const createChatImageModel = ({baseUrl, headers, modelId}: {
         'content-type': 'application/json',
         ...headers,
       },
-      body: JSON.stringify({
+      body: JSON.stringify(hook({
         model: modelId,
         messages: [
           {
@@ -189,7 +198,7 @@ const createChatImageModel = ({baseUrl, headers, modelId}: {
           ...resolution ? {image_size: resolution} : {},
         },
         ...body,
-      }),
+      }, getControlValues(options))),
     })
     await assertOk(response, title)
     const json = await response.json() as ChatEndpointResponse
@@ -208,16 +217,17 @@ const createChatImageModel = ({baseUrl, headers, modelId}: {
 /**
  * an AI SDK image model for an OpenAI-compatible endpoint like CLIProxyAPI
  *
- * The endpoint receives the model ID without its vendor prefix, so “x-ai/grok-imagine-image-2.0” is requested as “grok-imagine-image-2.0”. Gemini models are served through chat completions, all others through the images endpoints.
+ * The endpoint receives the model ID without its vendor prefix, so “x-ai/grok-imagine-image-2.0” is requested as “grok-imagine-image-2.0”. Gemini models are served through chat completions, all others through the images endpoints. The hook from the model’s traits gets the last word on every request body.
  */
 export const createAiEndpointModel = ({endpoint, key, model}: {
   endpoint: string
   key?: string
   model: ImageModel
 }): ImageModelV4 => {
-  const config = {
+  const config: EndpointModelConfig = {
     baseUrl: normalizeAiEndpoint(endpoint),
-    headers: key ? {authorization: `Bearer ${key}`} : {} as Record<string, string>,
+    headers: key ? {authorization: `Bearer ${key}`} : {},
+    hook: findModelTraits(model.shortId)?.hook,
     modelId: model.shortId,
   }
   return /gemini/i.test(model.id) ? createChatImageModel(config) : createImagesEndpointModel(config)

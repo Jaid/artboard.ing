@@ -50,6 +50,34 @@
   @include light
     color: oklch(45% 0.08 220) !important
 
+// the caret where a dragged collection tile will be inserted, colored like the reference it becomes
+.dropTarget
+  --drop: oklch(85% 0.15 200)
+  margin-left: -1px
+  border-left: 2px solid var(--drop)
+  box-shadow: 0 0 8px var(--drop)
+  pointer-events: none
+  @include light
+    --drop: oklch(48% 0.15 220)
+  // short bars at both ends tell it apart from the text cursor
+  &::before, &::after
+    content: ''
+    position: absolute
+    left: -4px
+    width: 6px
+    height: 2px
+    border-radius: 1px
+    background: var(--drop)
+  &::before
+    top: 0
+  &::after
+    bottom: 0
+
+.canvasDropTarget
+  --drop: oklch(88% 0.16 85)
+  @include light
+    --drop: oklch(52% 0.14 70)
+
 .container
   min-height: 60px
 

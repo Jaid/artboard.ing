@@ -1,15 +1,15 @@
 import type {ImageRequest} from '../src/lib/imageApi.ts'
-import type {HTTPRequest, Page} from 'puppeteer-core'
+import type {HTTPRequest, KeyInput, Page} from 'puppeteer-core'
 
 import assert from 'node:assert/strict'
 import {mkdir} from 'node:fs/promises'
 import {resolve as resolvePath} from 'node:path'
 
 import puppeteer from 'puppeteer-core'
+import {createServer, preview} from 'vite'
 
 import {adjustColor, getAdjustmentParameters} from '../src/lib/adjustments/color.ts'
 import catalog from '../src/lib/models/catalog.json'
-import {startServer} from './server.ts'
 
 const candidates = [Bun.env.CHROME_PATH, Bun.which('chrome'), Bun.which('chromium'), 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].filter((path): path is string => Boolean(path))
 const existing = await Promise.all(candidates.map(async path => (await Bun.file(path).exists() ? path : undefined)))
@@ -19,16 +19,15 @@ if (!executablePath) {
 }
 await mkdir('out/test/screenshots', {recursive: true})
 const redPng = await Bun.file('test/fixtures/red.png').bytes()
-const server = startServer({port: 0})
 const development = Bun.argv.includes('--development')
-const vite = development ? await import('vite').then(({createServer}) => createServer({server: {
-  host: '127.0.0.1',
-  port: 0,
-}})) : undefined
-if (vite) {
-  await vite.listen()
+// The app is static: the production suite previews the build in dist, the development suite runs the Vite dev server.
+const server = development ? await createServer({server: {port: 0}}) : await preview({preview: {port: 0}})
+if ('listen' in server) {
+  await server.listen()
 }
-const appOrigin = vite ? new URL(vite.resolvedUrls!.local[0]).origin : server.url.origin
+const appOrigin = new URL(server.resolvedUrls!.local[0]).origin
+/** the browser-session key every page starts with, so generations reach the mocked OpenRouter */
+const testKey = 'sk-or-v1-browser-test'
 const browser = await puppeteer.launch({
   executablePath,
   headless: true,
@@ -53,8 +52,10 @@ const checks: Array<{
   passed: boolean
 }> = []
 const errors: Array<string> = []
+/** generation requests that reached OpenRouter itself */
 const requests: Array<ImageRequest> = []
 const proxyHost = 'openrouter-proxy.test'
+/** every request that reached the OpenRouter proxy of ?openrouter_host */
 const proxyRequests: Array<{
   authorization?: string
   path: string
@@ -62,6 +63,12 @@ const proxyRequests: Array<{
 const pending: Array<HTTPRequest> = []
 let defer = false
 let page: Page
+// OpenRouter and the proxy are other origins, which the page may only read with CORS.
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST',
+}
 const output = () => JSON.stringify({
   data: [{
     b64_json: redPng.toBase64(),
@@ -74,6 +81,7 @@ const respond = async (request: HTTPRequest) => {
     await request.respond({
       status: 200,
       contentType: 'application/json',
+      headers: cors,
       body: output(),
     })
   } catch {}
@@ -90,61 +98,48 @@ async function wire(target: Page) {
   target.on('request', request => {
     void (async () => {
       const url = new URL(request.url())
-      if (url.hostname === proxyHost) {
-        // an OpenRouter proxy from ?openrouter_host, which the browser reaches directly and therefore needs CORS
-        const cors = {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'authorization, content-type',
-          'Access-Control-Allow-Methods': 'GET, POST',
-        }
-        if (request.method() === 'OPTIONS') {
-          await request.respond({
-            status: 204,
-            headers: cors,
-          })
-          return
-        }
-        proxyRequests.push({
-          path: url.pathname,
-          authorization: request.headers().authorization,
+      const openRouter = url.hostname === 'openrouter.ai'
+      if (!openRouter && url.hostname !== proxyHost) {
+        await request.continue()
+        return
+      }
+      if (request.method() === 'OPTIONS') {
+        await request.respond({
+          status: 204,
+          headers: cors,
         })
+        return
+      }
+      if (url.pathname === '/api/v1/images/models') {
+        if (!openRouter) {
+          proxyRequests.push({path: url.pathname})
+        }
         await request.respond({
           status: 200,
           contentType: 'application/json',
           headers: cors,
-          body: url.pathname === '/api/v1/images' ? output() : JSON.stringify(catalog),
+          body: JSON.stringify(catalog),
         })
-      } else if (url.pathname === '/api/models' || url.pathname === '/api/v1/images/models') {
-        await request.respond({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            ...catalog,
-            source: 'snapshot',
-          }),
-        })
-      } else if (url.pathname === '/api/status') {
-        await request.respond({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            configured: true,
-            csrfToken: 'browser-test-session',
-          }),
-        })
-      } else if (url.pathname === '/api/generate') {
-        const body = JSON.parse(await request.fetchPostData() ?? '{}') as ImageRequest
-        requests.push(body)
-        assert.equal(request.headers().authorization, undefined, 'The browser must not send a server credential.')
-        if (defer) {
-          pending.push(request)
-        } else {
-          await respond(request)
-        }
-      } else if (url.hostname === 'openrouter.ai') {
+        return
+      }
+      if (url.pathname !== '/api/v1/images') {
         await request.abort()
+        return
+      }
+      if (!openRouter) {
+        proxyRequests.push({
+          path: url.pathname,
+          authorization: request.headers().authorization,
+        })
+        await respond(request)
+        return
+      }
+      requests.push(JSON.parse(await request.fetchPostData() ?? '{}') as ImageRequest)
+      assert.equal(request.headers().authorization, `Bearer ${testKey}`, 'The browser sends its session key straight to OpenRouter.')
+      if (defer) {
+        pending.push(request)
       } else {
-        await request.continue()
+        await respond(request)
       }
     })().catch(error => {
       errors.push(`Interception: ${String(error)}`)
@@ -302,7 +297,7 @@ try {
     width: 1600,
     height: 1000,
   })
-  await page.goto(`${appOrigin}/?debug=true`, {waitUntil: 'networkidle0'})
+  await page.goto(`${appOrigin}/?debug=true&openrouter_key=${testKey}`, {waitUntil: 'networkidle0'})
   await ready(page)
   console.log(`Browser: ${await browser.version()}`)
   await check('Production startup, real Monaco and docked layers', async () => {
@@ -509,6 +504,159 @@ try {
     assert.equal(placed.ingredients, 4, 'Placing a collection image must not create a duplicate number')
     await page.evaluate(() => globalThis.artboarding!.actions.undo())
     assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), layers)
+  })
+  await check('Dragging a tile over the prompt marks the exact drop point, where the reference lands mid-sentence', async () => {
+    // Monaco renders a prompt set by the previous check only on its next frame; measuring before would hit the old line.
+    await page.waitForFunction(() => {
+      const prompt = globalThis.artboarding!.editorStore.state.prompt
+      return document.querySelector('.monaco-editor .view-lines')?.textContent.replaceAll('\u{A0}', ' ').startsWith(prompt.slice(0, 24))
+    })
+    // Between “cup” and “ of”, measured on the rendered text itself.
+    const point = await page.evaluate(() => {
+      const walker = document.createTreeWalker(document.querySelector('.monaco-editor .view-lines')!, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const match = /cup\sof/u.exec(node.textContent ?? '')
+        if (!match) {
+          continue
+        }
+        const range = document.createRange()
+        range.setStart(node, match.index + 3)
+        range.collapse(true)
+        const rect = range.getBoundingClientRect()
+        return {
+          x: rect.left,
+          y: rect.top + rect.height / 2,
+        }
+      }
+      throw new Error('“cup of” is not rendered in the prompt')
+    })
+    /**
+     * Fires a drag event at whatever is under the drop point right now, like a real drag, because Monaco re-renders its lines while decorations change.
+     * A dragleave carries the point and the element the pointer moved on to.
+     */
+    const dispatch = (type: 'dragend' | 'dragenter' | 'dragleave' | 'dragover' | 'dragstart' | 'drop', to = point) => page.evaluate((eventType, from, at) => {
+      const state = globalThis as unknown as {dragData?: DataTransfer}
+      state.dragData ??= new DataTransfer
+      const tile = document.querySelector<HTMLElement>('[data-testid="ingredient"][data-index="2"]')!
+      const target = eventType === 'dragstart' || eventType === 'dragend' ? tile : document.elementFromPoint(from.x, from.y)!
+      target.dispatchEvent(new DragEvent(eventType, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX: at.x,
+        clientY: at.y,
+        dataTransfer: state.dragData,
+        relatedTarget: eventType === 'dragleave' ? document.elementFromPoint(at.x, at.y) : null,
+      }))
+      if (eventType === 'dragend') {
+        delete state.dragData
+      }
+    }, type, point, to)
+    await dispatch('dragstart')
+    await dispatch('dragenter')
+    await dispatch('dragover')
+    const caret = async () => {
+      await settle()
+      return page.evaluate(() => {
+        const element = [...document.querySelectorAll<HTMLElement>('.monaco-editor .view-overlays .cdr')].find(node => getComputedStyle(node).borderLeftWidth === '2px')
+        return element ? element.getBoundingClientRect().toJSON() as DOMRect : null
+      })
+    }
+    const shown = await caret()
+    assert.ok(shown, 'A caret marks the drop point')
+    assert.ok(Math.abs(shown.left + shown.width / 2 - point.x) < 2.5, `The caret stands at the drop point: ${shown.left} vs. ${point.x}`)
+    assert.ok(shown.top <= point.y && shown.bottom >= point.y, 'The caret spans the line under the pointer')
+    // Moving along the line moves the caret; leaving the prompt removes it, coming back shows it again.
+    const viewport = (await (await page.$('[data-viewport]'))!.boundingBox())!
+    await dispatch('dragleave', {
+      x: viewport.x + viewport.width / 2,
+      y: viewport.y + viewport.height / 2,
+    })
+    assert.equal(await caret(), null, 'Leaving the prompt removes the caret')
+    await dispatch('dragover')
+    assert.deepEqual(await caret(), shown, 'Coming back shows the caret again')
+    const before = await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt)
+    await dispatch('drop')
+    await dispatch('dragend')
+    await page.waitForFunction(previous => globalThis.artboarding!.editorStore.state.prompt !== previous, {}, before)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt), before.replace('cup of', 'cup ![2] of'), 'The reference lands where the caret was, apart from both words')
+    assert.equal(await caret(), null, 'Dropping removes the caret')
+    await page.evaluate(text => globalThis.artboarding!.editorStore.set({prompt: text}), before)
+  })
+  await check('Clicking a collection item opens its details with the very menu of its context menu', async () => {
+    const promptBefore = await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt)
+    await page.click('[data-testid="ingredient"][data-index="2"] button')
+    await page.waitForSelector('[data-testid="collection-dialog"][open]')
+    const details = await page.evaluate(() => {
+      const dialog = document.querySelector('[data-testid="collection-dialog"]')!
+      const image = dialog.querySelector('[data-testid="collection-dialog-image"]')!.getBoundingClientRect()
+      const bounds = dialog.getBoundingClientRect()
+      const menu = dialog.querySelector<HTMLElement>('[role="menu"]')!
+      const menuBounds = menu.getBoundingClientRect()
+      const detailsBounds = dialog.querySelector('section')!.getBoundingClientRect()
+      return {
+        layout: {
+          besideImage: menuBounds.left >= image.right,
+          belowDetails: menuBounds.top >= detailsBounds.bottom - 1 && Math.abs(menuBounds.left - detailsBounds.left) < 16,
+          flat: getComputedStyle(menu).borderTopWidth === '0px' && getComputedStyle(menu).backgroundColor === 'rgba(0, 0, 0, 0)',
+          headingHidden: !menu.querySelector('strong')!.checkVisibility(),
+        },
+        image: {
+          width: image.width,
+          height: image.height,
+        },
+        inside: bounds.left >= 0 && bounds.top >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight,
+        title: dialog.querySelector('h2')!.textContent,
+        items: [...dialog.querySelectorAll('[role="menu"] [role="menuitem"]')].map(node => node.textContent),
+        menu: dialog.querySelector('[role="menu"]')!.innerHTML,
+        hovered: globalThis.artboarding!.editorStore.state.hoveredCollectionIndex,
+      }
+    })
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt), promptBefore, 'Clicking a tile no longer inserts its reference')
+    assert.deepEqual(details.items, ['Extract subject', 'Export', 'Delete'])
+    assert.ok(Math.max(details.image.width, details.image.height) > 400, `The picture is shown large: ${details.image.width} × ${details.image.height}`)
+    assert.ok(details.inside, 'The dialog fits into the window')
+    assert.equal(details.title, '2red')
+    assert.equal(details.hovered, null, 'The tile does not stay highlighted under the dialog')
+    assert.deepEqual(details.layout, {
+      besideImage: true,
+      belowDetails: true,
+      flat: true,
+      headingHidden: true,
+    }, 'The menu sits flat below the details in the column next to the picture')
+    await page.screenshot({path: 'out/test/screenshots/collection-dialog.png'})
+    // Arrow keys go through the tiles, even after the focused button vanished with the previous tile.
+    const order = await page.evaluate(() => [0, ...globalThis.artboarding!.projectStore.state.ingredients.map(item => item.index)])
+    const shown = () => page.evaluate(() => Number(document.querySelector('[data-testid="collection-dialog"] h2 > span')!.textContent))
+    const press = async (key: KeyInput) => {
+      await page.keyboard.press(key)
+      await settle()
+      return shown()
+    }
+    assert.equal(await press('ArrowDown'), order.at(-1), '↓ shows the last item')
+    assert.equal(await press('ArrowRight'), 0, '→ wraps around to the frame view')
+    assert.equal(await press('ArrowRight'), order[1])
+    await page.focus('[data-testid="collection-dialog"] [role="menuitem"]:not(:disabled)')
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('role')), 'menuitem')
+    assert.equal(await press('ArrowLeft'), 0, '← steps back from a focused menu item')
+    assert.equal(await press('ArrowLeft'), order.at(-1), '← keeps working after the menu item vanished')
+    assert.equal(await press('ArrowUp'), 0, '↑ shows the frame view')
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="collection-dialog"][open]'))
+    await page.click('[data-testid="ingredient"][data-index="2"] button', {button: 'right'})
+    await page.waitForSelector('[role="menu"][aria-label="Collection context menu"]')
+    assert.equal(await page.$eval('[role="menu"][aria-label="Collection context menu"]', node => node.innerHTML), details.menu, 'The dialog shows the very context menu')
+    assert.equal(await page.$eval('[role="menu"][aria-label="Collection context menu"]', node => getComputedStyle(node).borderTopWidth), '1px', 'The context menu keeps its floating panel')
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[role="menu"]'))
+    // The frame view opens a large live view of ![0]; a click on the backdrop closes it.
+    await page.click('[data-testid="frame-view"] button')
+    await page.waitForSelector('[data-testid="collection-dialog"][open]')
+    await page.waitForFunction(() => (document.querySelector<HTMLCanvasElement>('[data-testid="collection-dialog"] canvas')?.width ?? 0) > 400)
+    assert.deepEqual(await page.$$eval('[data-testid="collection-dialog"] [role="menuitem"]', nodes => nodes.map(node => node.textContent)), ['Export…'])
+    await page.mouse.click(5, 5)
+    await page.waitForFunction(() => !document.querySelector('[data-testid="collection-dialog"][open]'))
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.editorStore.state.prompt), promptBefore)
   })
   await check('The frame view at position 0 follows the frame live; collection items export from their context menu', async () => {
     const sample = () => page.$eval('[data-testid="frame-view"] canvas', node => {
@@ -951,6 +1099,71 @@ try {
     await page.select('[data-testid="model-select"]', 'google/gemini-nano-banana-2.1')
     await page.evaluate(() => globalThis.artboarding!.editorStore.set({prompt: 'A localized detail repair'}))
   })
+  await check('Several shots run at once and land in one layer as its revisions', async () => {
+    const before = await page.evaluate(() => {
+      const h = globalThis.artboarding!
+      h.editorStore.set({prompt: 'Three takes on a detail'})
+      return {
+        layers: h.projectStore.state.layers.length,
+        ingredients: h.projectStore.state.ingredients.length,
+      }
+    })
+    await page.select('[data-testid="shots-select"]', '3')
+    const count = requests.length
+    defer = true
+    await page.click('[data-testid="generate"]')
+    for (let i = 0; i < 300 && pending.length < 3; i++) {
+      await Bun.sleep(10)
+    }
+    assert.equal(pending.length, 3, 'All shots are sent at once')
+    const overlays = await page.$$eval('[data-testid="job-overlay"]', nodes => nodes.map(node => node.textContent))
+    assert.equal(overlays.length, 1, 'The shots share one overlay')
+    assert.match(overlays[0], /^3 shots · Nano Banana 2\.1 · \d+ s$/)
+    assert.equal(await page.$eval('[data-testid="generate"]', node => node.textContent.trim().at(-1)), '3', 'The badge counts every running shot')
+    await release()
+    await page.waitForFunction(() => globalThis.artboarding!.editorStore.state.jobs.length === 0)
+    const sent = requests.slice(count)
+    assert.equal(sent.length, 3)
+    assert.ok(sent.every(request => JSON.stringify(request) === JSON.stringify(sent[0])), 'Every shot sends the very same request')
+    const state = await page.evaluate(() => {
+      const h = globalThis.artboarding!
+      const layer = h.projectStore.state.layers.at(-1)!
+      return {
+        id: layer.id,
+        name: layer.name,
+        layers: h.projectStore.state.layers.length,
+        ingredients: h.projectStore.state.ingredients.length,
+        revisions: layer.revisions?.length,
+        outputs: new Set(layer.revisions?.map(revision => revision.evidence.outputAssetId)).size,
+      }
+    })
+    assert.equal(state.layers, before.layers + 1, 'All shots land in a single new layer')
+    assert.equal(state.revisions, 3)
+    assert.equal(state.ingredients, before.ingredients + 3, 'Every shot becomes a collection item')
+    assert.equal(await page.$eval('[data-testid="revision-selector"]', node => node.textContent.replaceAll(/[▸◂]/g, '')), '3/3')
+    // A reroll asks for as many shots, and they join the layer too.
+    await page.click(`[title="Select ${state.name}"]`, {button: 'right'})
+    await page.waitForSelector('[role="menu"]')
+    await button('Reroll 3×')
+    await page.waitForFunction(id => (globalThis.artboarding!.projectStore.state.layers.find(layer => layer.id === id)?.revisions?.length ?? 0) === 6 && globalThis.artboarding!.editorStore.state.jobs.length === 0, {}, state.id)
+    assert.equal(requests.length, count + 6)
+    assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), state.layers, 'Rerolled shots add no layer')
+    // Every landed shot is an undo step of its own; undoing all six leaves the project as it was.
+    const after = await page.evaluate(() => {
+      const h = globalThis.artboarding!
+      for (let i = 0; i < 6; i++) {
+        h.actions.undo()
+      }
+      h.actions.selectLayer(null)
+      h.editorStore.set({prompt: 'A localized detail repair'})
+      return {
+        layers: h.projectStore.state.layers.length,
+        ingredients: h.projectStore.state.ingredients.length,
+      }
+    })
+    assert.deepEqual(after, before)
+    await page.select('[data-testid="shots-select"]', '1')
+  })
   await check('Transform presets ignore the prompt and add a collection item with the current model, resolution and ratio', async () => {
     const before = await page.evaluate(() => {
       const h = globalThis.artboarding!
@@ -995,6 +1208,7 @@ try {
       const h = globalThis.artboarding!
       const ingredient = h.projectStore.state.ingredients.at(-1)!
       return {
+        index: ingredient.index,
         kind: ingredient.kind,
         name: ingredient.name,
         layers: h.projectStore.state.layers.length,
@@ -1006,6 +1220,23 @@ try {
     assert.equal(result.layers, before.layers, 'A transform adds no layer')
     assert.equal(result.prompt, `Something else entirely ![${before.index}]`, 'A transform leaves the prompt alone')
     assert.equal(await page.$('[data-testid="transform-job"]'), null)
+    // The result keeps its request capture, which its details show.
+    await page.click(`[data-testid="ingredient"][data-index="${result.index}"] button`)
+    await page.waitForSelector('[data-testid="collection-dialog"][open]')
+    const details = await page.evaluate(() => {
+      const dialog = document.querySelector('[data-testid="collection-dialog"]')!
+      return {
+        prompt: dialog.querySelector('[data-testid="collection-dialog-prompt"]')?.textContent,
+        inference: Object.fromEntries([...dialog.querySelectorAll('[data-testid="collection-dialog-inference"] dt')].map(term => [term.textContent, term.nextElementSibling?.textContent])),
+        inputs: dialog.querySelectorAll('figcaption').length,
+      }
+    })
+    assert.equal(details.prompt, 'Extract the subject of this image in high quality on a neutral background')
+    assert.deepEqual([details.inference.Model, details.inference.Ratio, details.inference.Resolution, details.inference.Cost], ['Nano Banana 2.1', '3:2', '2K', '$ 0.0250'])
+    assert.equal(details.inputs, 1, 'The collection image was the only input image')
+    await page.screenshot({path: 'out/test/screenshots/collection-dialog-generation.png'})
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="collection-dialog"][open]'))
     await page.evaluate(restore => globalThis.artboarding!.editorStore.set({
       ...restore,
       prompt: 'A localized detail repair',
@@ -1713,6 +1944,10 @@ try {
         width,
         height,
       })
+      // Crossing the stacking breakpoint remounts the panels once the media query reports its change, so a select issued earlier could hit a discarded element.
+      await page.evaluate(() => new Promise(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      }))
       await page.select('select[aria-label="Color scheme"]', theme)
       await page.evaluate(() => {
         const h = globalThis.artboarding!
@@ -1841,7 +2076,7 @@ try {
     await ready(page)
     assert.equal(await page.evaluate(() => globalThis.artboarding!.projectStore.state.layers.length), 0)
   })
-  await check('?openrouter_host bypasses the gateway, and ?openrouter_key=false sends no key', async () => {
+  await check('?openrouter_host sends discovery and generations to another host, and ?openrouter_key=false sends no key', async () => {
     const generateThrough = async (query: string) => {
       const target = await browser.newPage()
       await wire(target)
@@ -1883,11 +2118,11 @@ try {
     const keylessGeneration = hostless.sent.find(item => item.path === '/api/v1/images')
     assert.ok(keylessGeneration, 'The generation must go to the proxy')
     assert.equal(keylessGeneration.authorization, undefined)
-    const keyed = await generateThrough(`openrouter_host=https://${proxyHost}/api/v1&openrouter_key=sk-or-v1-browser-test`)
+    const keyed = await generateThrough(`openrouter_host=https://${proxyHost}/api/v1&openrouter_key=${testKey}`)
     assert.equal(keyed.trigger, 'Session key')
     assert.equal(keyed.disabled, false)
-    assert.equal(keyed.sent.find(item => item.path === '/api/v1/images')?.authorization, 'Bearer sk-or-v1-browser-test')
-    assert.equal(requests.length, requestsBefore, 'The local gateway must not be used for another host')
+    assert.equal(keyed.sent.find(item => item.path === '/api/v1/images')?.authorization, `Bearer ${testKey}`)
+    assert.equal(requests.length, requestsBefore, 'Nothing goes to OpenRouter itself while another host is set')
   })
   assert.deepEqual(errors, [], 'No unexpected browser JavaScript errors are allowed.')
   console.log(`Browser checks: ${checks.length} passed. All provider responses were deterministic mocks; no billable calls were made.`)
@@ -1901,6 +2136,5 @@ try {
     billableRequests: 0,
   }, null, 2))
   await browser.close()
-  await vite?.close()
-  await server.stop(true)
+  await server.close()
 }

@@ -12,6 +12,7 @@ export default defineConfig({
     host: '127.0.0.1',
     watch: {ignored: ['**/out/**', '**/temp/**', '**/dist/**']},
   },
+  preview: {host: '127.0.0.1'},
   build: {
     target: 'chrome154',
     minify: 'oxc',

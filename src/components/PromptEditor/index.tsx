@@ -5,10 +5,10 @@ import Monacozen from 'monacozen'
 import {useEffect, useRef, useState} from 'react'
 
 import {setPrompt} from '#src/lib/actions.ts'
-import {getDroppedReference, isReferenceDrag} from '#src/lib/collectionDrag.ts'
+import {getDroppedReference, isIngredientDrag, isReferenceDrag} from '#src/lib/collectionDrag.ts'
 import {generate} from '#src/lib/generation.ts'
 import {findReferences} from '#src/lib/prompt.ts'
-import {insertIntoPrompt, registerPromptInserter} from '#src/lib/promptEditor.ts'
+import {insertIntoPrompt, padInsertion, registerPromptInserter} from '#src/lib/promptEditor.ts'
 import {editorStore, projectStore} from '#src/lib/state.ts'
 import {useStore} from '#src/lib/store/index.ts'
 import {useDarkMode} from '#src/lib/useDarkMode.ts'
@@ -54,6 +54,36 @@ const getOverflowWidgetsDomNode = () => {
     document.body.append(overflowWidgetsDomNode)
   }
   return overflowWidgetsDomNode
+}
+type TextPosition = {
+  column: number
+  lineNumber: number
+}
+/** Inserts text at the position (or over the selection), kept apart from the words around it. The cursor ends up right after the insertion. */
+const insertAt = (editor: StandaloneEditor, monaco: MonacoApi, text: string, position?: TextPosition) => {
+  const model = editor.getModel()
+  const selection = position ? new monaco.Selection(position.lineNumber, position.column, position.lineNumber, position.column) : editor.getSelection()
+  if (!selection || !model) {
+    return
+  }
+  const before = model.getValueInRange({
+    startLineNumber: selection.startLineNumber,
+    startColumn: Math.max(1, selection.startColumn - 1),
+    endLineNumber: selection.startLineNumber,
+    endColumn: selection.startColumn,
+  })
+  const after = model.getValueInRange({
+    startLineNumber: selection.endLineNumber,
+    startColumn: selection.endColumn,
+    endLineNumber: selection.endLineNumber,
+    endColumn: Math.min(model.getLineMaxColumn(selection.endLineNumber), selection.endColumn + 2),
+  })
+  editor.executeEdits('artboarding', [{
+    range: selection,
+    text: padInsertion(text, before, after),
+    forceMoveMarkers: true,
+  }], ([inserted]) => [new monaco.Selection(inserted.range.endLineNumber, inserted.range.endColumn, inserted.range.endLineNumber, inserted.range.endColumn)])
+  editor.focus()
 }
 const getIngredients = () => projectStore.state.ingredients
 const findIngredient = (index: number): Ingredient | undefined => getIngredients().find(ingredient => ingredient.index === index)
@@ -142,6 +172,7 @@ const PromptEditor = () => {
   const hoveredIndex = useStore(editorStore, state => state.hoveredCollectionIndex)
   const editorRef = useRef<StandaloneEditor | null>(null)
   const decorationsRef = useRef<DecorationsCollection | null>(null)
+  const dropTargetRef = useRef<DecorationsCollection | null>(null)
   const monacoRef = useRef<MonacoApi | null>(null)
   const cleanupRef = useRef<(() => void) | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -149,13 +180,46 @@ const PromptEditor = () => {
     ...options,
     overflowWidgetsDomNode: getOverflowWidgetsDomNode(),
   }))
-  // Collection tiles, the frame view included, drop as references at the pointer. Capturing keeps Monaco’s own text drop and the file dropzone out of it.
+  // Collection tiles, the frame view included, drop as references at the pointer, which a caret marks while dragging. Capturing keeps Monaco’s own text drop and the file dropzone out of it.
   useEffect(() => {
     const container = containerRef.current
     if (!container) {
       return
     }
-    const positionAt = (event: DragEvent) => editorRef.current?.getTargetAtClientPoint(event.clientX, event.clientY)?.position
+    /** where and in which color the caret is shown, so an unchanged caret is not redecorated on every dragover */
+    let shown = ''
+    /** where the caret stands, which is where a drop lands */
+    let shownPosition: TextPosition | undefined
+    const hide = () => {
+      shown = ''
+      shownPosition = undefined
+      dropTargetRef.current?.clear()
+    }
+    const show = (event: DragEvent) => {
+      const editor = editorRef.current
+      const monaco = monacoRef.current
+      const position = editor?.getTargetAtClientPoint(event.clientX, event.clientY)?.position
+      if (!editor || !monaco || !position) {
+        hide()
+        return
+      }
+      const className = isIngredientDrag(event.dataTransfer) ? css.dropTarget : `${css.dropTarget} ${css.canvasDropTarget}`
+      const key = `${position.lineNumber}:${position.column}:${className}`
+      if (key === shown) {
+        return
+      }
+      shown = key
+      shownPosition = {
+        lineNumber: position.lineNumber,
+        column: position.column,
+      }
+      dropTargetRef.current?.set([{
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        options: {className},
+      }])
+      // Near the top or bottom edge, revealing the line scrolls the prompt along.
+      editor.revealPosition(position, monaco.editor.ScrollType.Immediate)
+    }
     const over = (event: DragEvent) => {
       if (!isReferenceDrag(event.dataTransfer)) {
         return
@@ -163,12 +227,13 @@ const PromptEditor = () => {
       event.preventDefault()
       event.stopPropagation()
       event.dataTransfer!.dropEffect = 'copy'
-      const position = positionAt(event)
-      if (position && editorRef.current) {
-        editorRef.current.setPosition(position)
-        if (!editorRef.current.hasTextFocus()) {
-          editorRef.current.focus()
-        }
+      show(event)
+    }
+    const leave = (event: DragEvent) => {
+      const bounds = container.getBoundingClientRect()
+      const towardInside = event.relatedTarget instanceof Node ? container.contains(event.relatedTarget) : event.clientX > bounds.left && event.clientX < bounds.right && event.clientY > bounds.top && event.clientY < bounds.bottom
+      if (!towardInside) {
+        hide()
       }
     }
     const drop = (event: DragEvent) => {
@@ -177,21 +242,33 @@ const PromptEditor = () => {
       }
       event.preventDefault()
       event.stopPropagation()
+      const editor = editorRef.current
+      const monaco = monacoRef.current
+      // The reference lands exactly where the caret stood, not wherever the lines happen to be measured once the caret is gone.
+      const position = shownPosition ?? editor?.getTargetAtClientPoint(event.clientX, event.clientY)?.position ?? undefined
+      hide()
       const reference = getDroppedReference(event.dataTransfer)
-      if (reference) {
-        insertIntoPrompt(reference, {
-          x: event.clientX,
-          y: event.clientY,
-        })
+      if (!reference) {
+        return
+      }
+      if (editor && monaco) {
+        insertAt(editor, monaco, reference, position)
+      } else {
+        insertIntoPrompt(reference)
       }
     }
     container.addEventListener('dragenter', over, true)
     container.addEventListener('dragover', over, true)
+    container.addEventListener('dragleave', leave, true)
     container.addEventListener('drop', drop, true)
+    // A drag that is canceled or dropped elsewhere ends without a drop here.
+    addEventListener('dragend', hide)
     return () => {
       container.removeEventListener('dragenter', over, true)
       container.removeEventListener('dragover', over, true)
+      container.removeEventListener('dragleave', leave, true)
       container.removeEventListener('drop', drop, true)
+      removeEventListener('dragend', hide)
     }
   }, [])
   const updateDecorations = () => {
@@ -248,6 +325,7 @@ const PromptEditor = () => {
     }
     monacoRef.current = monaco
     decorationsRef.current = editor.createDecorationsCollection()
+    dropTargetRef.current = editor.createDecorationsCollection()
     registerProviders(monaco)
     editor.addAction({
       id: 'artboarding.generate',
@@ -257,27 +335,7 @@ const PromptEditor = () => {
         void generate()
       },
     })
-    registerPromptInserter((text, client) => {
-      const model = editor.getModel()
-      const dropped = client ? editor.getTargetAtClientPoint(client.x, client.y)?.position : undefined
-      const selection = dropped ? new monaco.Selection(dropped.lineNumber, dropped.column, dropped.lineNumber, dropped.column) : editor.getSelection()
-      if (!selection || !model) {
-        return
-      }
-      const before = model.getValueInRange({
-        startLineNumber: selection.startLineNumber,
-        startColumn: Math.max(1, selection.startColumn - 1),
-        endLineNumber: selection.startLineNumber,
-        endColumn: selection.startColumn,
-      })
-      const padded = before && !/\s/.test(before) ? ` ${text}` : text
-      editor.executeEdits('artboarding', [{
-        range: selection,
-        text: padded,
-        forceMoveMarkers: true,
-      }])
-      editor.focus()
-    })
+    registerPromptInserter((text, client) => insertAt(editor, monaco, text, client ? editor.getTargetAtClientPoint(client.x, client.y)?.position ?? undefined : undefined))
     updateDecorations()
   }
   return <div className={css.container} data-testid='prompt-editor' ref={containerRef}>

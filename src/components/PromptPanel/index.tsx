@@ -4,14 +4,16 @@ import {Frame, Sparkles} from 'lucide-react'
 import ApiKeySettings from '#component/ApiKeySettings'
 import IconButton from '#component/IconButton'
 import Ingredients from '#component/Ingredients'
+import ModelIcon from '#component/ModelIcon'
 import ProjectBar from '#component/ProjectBar'
 import PromptEditor from '#component/PromptEditor'
 import RatioPicker from '#component/RatioPicker'
-import {setFrameEnabled, setModel, setQuality, setResolution} from '#src/lib/actions.ts'
+import {setFrameEnabled, setModel, setQuality, setResolution, setShots} from '#src/lib/actions.ts'
 import {persistenceStore} from '#src/lib/autosave.ts'
-import {generate} from '#src/lib/generation.ts'
+import {generate, maxConcurrentGenerations} from '#src/lib/generation.ts'
 import {generationModeTitles} from '#src/lib/generationRegion.ts'
 import {catalogStore, getModel, models} from '#src/lib/models/index.ts'
+import {shotCounts} from '#src/lib/shots.ts'
 import {editorStore} from '#src/lib/state.ts'
 import {useStore} from '#src/lib/store/index.ts'
 import {useGenerationMode} from '#src/lib/useGenerationMode.ts'
@@ -50,7 +52,7 @@ export default function PromptPanel() {
     <Ingredients />
     <footer className={css.footer}>
       <div className={css.settings}>
-        <label className={clsx(css.field, css.modelField)}><span className={css.fieldLabel} title={`${catalog.source === 'live' ? 'Live Image API capabilities' : 'Bundled capability snapshot'} · ${new Date(catalog.updatedAt).toLocaleDateString('sv')}${catalog.error ? `\n${catalog.error}` : ''}`}>Image model</span><select className={css.select} aria-label='Image model' data-testid='model-select' title={model.note} value={editor.modelId} onChange={event => setModel(event.currentTarget.value)}>{vendors.map(vendor => <optgroup key={vendor} label={vendor}>{models.filter(item => item.vendor === vendor).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</optgroup>)}</select></label>
+        <label className={clsx(css.field, css.modelField)}><span className={css.fieldLabel} title={`${catalog.source === 'live' ? 'Live Image API capabilities' : 'Bundled capability snapshot'} · ${new Date(catalog.updatedAt).toLocaleDateString('sv')}${catalog.error ? `\n${catalog.error}` : ''}`}>Image model</span><select className={clsx(css.select, css.modelSelect)} aria-label='Image model' data-testid='model-select' title={model.note} value={editor.modelId} onChange={event => setModel(event.currentTarget.value)}><button type='button'><selectedcontent /></button>{vendors.map(vendor => <optgroup key={vendor} label={vendor}>{models.filter(item => item.vendor === vendor).map(item => <option key={item.id} value={item.id}><ModelIcon icon={item.icon} /><span className={css.optionTitle}>{item.title}</span></option>)}</optgroup>)}</select></label>
         <CompactSelect label='Resolution' options={model.resolutions} value={editor.resolution} onChange={setResolution} />
         <CompactSelect label='Quality' options={model.qualities} value={editor.quality} onChange={setQuality} />
         <div className={css.field}><span className={css.fieldLabel}>Frame ratio</span><RatioPicker /></div>
@@ -61,7 +63,7 @@ export default function PromptPanel() {
           ...event.currentTarget.checked && !editorStore.state.prompt.trim() ? {prompt: 'A moonlit mountain observatory above a sea of clouds'} : {},
         })}
       />Demo mode <span>no credits</span></label></div>
-      <div className={css.generateRow}>{editor.sessionCost > 0 ? <span className={css.meta} title='Actual reported OpenRouter cost for this browser session'>$ {editor.sessionCost.toFixed(4)}</span> : editor.demoMode && <span className={css.meta}>Procedural preview · not AI</span>}<IconButton className={css.frameToggle} active={editor.frameEnabled} data-testid='frame-toggle' icon={Frame} size={17} title={editor.frameEnabled ? 'Frame on · generations use the frame. Click to span all canvas content instead.' : 'Frame off · generations span all canvas content. Click to use the frame.'} onClick={() => setFrameEnabled(!editor.frameEnabled)} /><button className={css.generate} data-mode={mode} data-testid='generate' disabled={!storage.hydrated || running >= 2} title='Ctrl+Enter' type='button' onBlur={() => charged(false)} onClick={() => void generate()} onFocus={() => charged(true)} onPointerEnter={() => charged(true)} onPointerLeave={() => charged(false)}><Sparkles aria-hidden size={16} /><span className={css.generateLabel} data-reserve-a={`${widestTitle}${editor.demoMode ? ' demo' : ''}`} data-reserve-b={`${secondWidestTitle}${editor.demoMode ? ' demo' : ''}`}><span>{generationModeTitles[mode]}{editor.demoMode && ' demo'}</span></span>{running > 0 && <span className={css.badge}>{running}</span>}</button></div>
+      <div className={css.generateRow}>{editor.sessionCost > 0 ? <span className={css.meta} title='Actual reported OpenRouter cost for this browser session'>$ {editor.sessionCost.toFixed(4)}</span> : editor.demoMode && <span className={css.meta}>Procedural preview · not AI</span>}<IconButton className={css.frameToggle} active={editor.frameEnabled} data-testid='frame-toggle' icon={Frame} size={17} title={editor.frameEnabled ? 'Frame on · generations use the frame. Click to span all canvas content instead.' : 'Frame off · generations span all canvas content. Click to use the frame.'} onClick={() => setFrameEnabled(!editor.frameEnabled)} /><select className={clsx(css.select, css.shots)} aria-label='Shots' data-testid='shots-select' title={'Shots · images per generation and per reroll\nThey run at the same time and land in one layer as alternatives.'} value={editor.shots} onChange={event => setShots(Number(event.currentTarget.value))}>{shotCounts.map(count => <option key={count} value={count}>{count}×</option>)}</select><button className={css.generate} data-mode={mode} data-testid='generate' disabled={!storage.hydrated || running >= maxConcurrentGenerations} title='Ctrl+Enter' type='button' onBlur={() => charged(false)} onClick={() => void generate()} onFocus={() => charged(true)} onPointerEnter={() => charged(true)} onPointerLeave={() => charged(false)}><Sparkles aria-hidden size={16} /><span className={css.generateLabel} data-reserve-a={`${widestTitle}${editor.demoMode ? ' demo' : ''}`} data-reserve-b={`${secondWidestTitle}${editor.demoMode ? ' demo' : ''}`}><span>{generationModeTitles[mode]}{editor.demoMode && ' demo'}</span></span>{running > 0 && <span className={css.badge}>{running}</span>}</button></div>
     </footer>
   </div>
 }

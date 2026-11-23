@@ -1,13 +1,13 @@
 import type {RatioString} from '../ratio.ts'
+import type {ModelIcon, ModelTraits} from './modelTraits.ts'
 
 import queryParameters, {customModelIds} from '#src/queryParameters.ts'
 
-import {openRouterOrigin} from '../openRouterAccess.ts'
 import {isRatioString} from '../ratio.ts'
 import {Store} from '../store/index.ts'
 import {ImageModel} from './base/ImageModel.ts'
 import snapshot from './catalog.json'
-import {findEndpointRatios} from './endpointRatios.ts'
+import {findModelTraits} from './modelTraits.ts'
 
 export type Capability = {
   max: number
@@ -24,13 +24,6 @@ export type ImageCatalogEntry = {
 }
 export const requestedModelIds: ReadonlyArray<string> = snapshot.data.map(row => row.id)
 const titles = ['Gemini Flash Lite', 'Gemini Flash', 'Nano Banana 2.1', 'GPT Image Sunburst', 'Flux 3', 'Grok Imagine', 'Seedream Flash', 'Seedream Lite', 'Seedream Pro']
-const vendors: Record<string, string> = {
-  google: 'Google',
-  openai: 'OpenAI',
-  'black-forest-labs': 'Black Forest Labs',
-  'x-ai': 'xAI',
-  'bytedance-seed': 'ByteDance',
-}
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** Treat discovery data as untrusted. Absence in this catalog is not a claim about account access. */
@@ -90,13 +83,19 @@ const values = (id: string, key: string) => {
   const cap = catalog.get(id)?.supported_parameters[key]
   return cap?.type === 'enum' ? cap.values : []
 }
+/** vendor, title and icon of a model apply everywhere */
+const getTraits = (model: ImageModel): ModelTraits | undefined => findModelTraits(model.shortId)
+/** ratios, controls and hooks only describe what ai_endpoint serves, so they are ignored for OpenRouter */
+const getEndpointTraits = (model: ImageModel) => (queryParameters.ai_endpoint ? getTraits(model) : undefined)
 class CatalogImageModel extends ImageModel {
-  constructor(readonly id: string, readonly title: string) {
+  constructor(readonly id: string, readonly catalogTitle: string) {
     super()
   }
   get aspectRatios(): ReadonlyArray<RatioString> {
-    const endpoint = queryParameters.ai_endpoint ? findEndpointRatios(this.shortId) : undefined
-    return endpoint ?? values(this.id, 'aspect_ratio').filter(isRatioString)
+    return getEndpointTraits(this)?.ratios ?? values(this.id, 'aspect_ratio').filter(isRatioString)
+  }
+  get icon(): ModelIcon | undefined {
+    return getTraits(this)?.icon
   }
   get maxReferences() {
     const cap = catalog.get(this.id)?.supported_parameters.input_references
@@ -105,58 +104,93 @@ class CatalogImageModel extends ImageModel {
   get note() {
     return `${catalogStore.state.source === 'live' ? 'Live Image API' : 'Bundled capability snapshot'} · up to ${this.maxReferences} reference images`
   }
-  get qualities() {
-    return values(this.id, 'quality')
+  get qualities(): ReadonlyArray<string> {
+    return getEndpointTraits(this)?.controls?.quality ?? values(this.id, 'quality')
   }
-  get resolutions() {
-    return values(this.id, 'resolution')
+  get resolutions(): ReadonlyArray<string> {
+    return getEndpointTraits(this)?.controls?.resolution ?? values(this.id, 'resolution')
   }
-  get vendor() {
-    return vendors[this.id.split('/')[0]] ?? this.id.split('/')[0]
+  get title(): string {
+    return getTraits(this)?.title ?? this.catalogTitle
+  }
+  get vendor(): string {
+    return getTraits(this)?.vendor ?? this.id.split('/')[0]
   }
 }
 const catalogModels: ReadonlyArray<ImageModel> = requestedModelIds.map((id, i) => new CatalogImageModel(id, titles[i]))
 const defaultCustomRatios: ReadonlyArray<RatioString> = ['1:1', '3:4', '4:3', '9:16', '16:9']
-/** a model given by a model_id query parameter; capabilities come from a catalog model with the same ID, if there is one */
+/** a model given by a model_id query parameter or a models ID the catalog lacks; capabilities come from a catalog model with the same ID, if there is one */
 class CustomImageModel extends ImageModel {
-  readonly vendor = 'Custom'
   constructor(readonly id: string, readonly base?: ImageModel) {
     super()
   }
-  get aspectRatios() {
+  get aspectRatios(): ReadonlyArray<RatioString> {
     if (queryParameters.ratios.length) {
       return queryParameters.ratios
     }
-    const endpoint = queryParameters.ai_endpoint ? findEndpointRatios(this.id) : undefined
-    return endpoint ?? this.base?.aspectRatios ?? defaultCustomRatios
+    return getEndpointTraits(this)?.ratios ?? this.base?.aspectRatios ?? defaultCustomRatios
+  }
+  get icon(): ModelIcon | undefined {
+    return getTraits(this)?.icon
   }
   get maxReferences() {
     return this.base?.maxReferences ?? 16
   }
   get note() {
-    return `Custom model from model_id · up to ${this.maxReferences} reference images`
+    return `Custom model from the URL · up to ${this.maxReferences} reference images`
   }
-  get qualities() {
-    return this.base?.qualities ?? []
+  get qualities(): ReadonlyArray<string> {
+    return getEndpointTraits(this)?.controls?.quality ?? this.base?.qualities ?? []
   }
-  get resolutions() {
-    return this.base?.resolutions ?? []
+  get resolutions(): ReadonlyArray<string> {
+    return getEndpointTraits(this)?.controls?.resolution ?? this.base?.resolutions ?? []
   }
   /** sent as is, even if it contains a slash */
   override get shortId() {
     return this.id
   }
-  get title() {
-    return this.id
+  get title(): string {
+    return getTraits(this)?.title ?? this.id
+  }
+  get vendor(): string {
+    return getTraits(this)?.vendor ?? 'Custom'
   }
 }
-export const customModels: ReadonlyArray<ImageModel> = customModelIds.map(id => new CustomImageModel(id, catalogModels.find(model => model.id === id || model.shortId === id)))
+const matchesId = (model: ImageModel, id: string) => model.id === id || model.shortId === id
+const findIn = (candidates: ReadonlyArray<ImageModel>, id: string) => candidates.find(model => matchesId(model, id))
+/** IDs from the models parameter that the catalog lacks become custom models, just like model_id */
+const listedCustomIds = queryParameters.models.filter(id => !findIn(catalogModels, id))
+export const customModels: ReadonlyArray<ImageModel> = [...new Set([...customModelIds, ...listedCustomIds])].map(id => new CustomImageModel(id, findIn(catalogModels, id)))
+/**
+ * Limits the available models to the listed IDs, in their order, after the model_id models.
+ *
+ * Without listed IDs, every model is available. Earlier models win over later ones that share an ID.
+ */
+export const pickListedModels = (available: ReadonlyArray<ImageModel>, listedIds: ReadonlyArray<string>, pinned: ReadonlyArray<ImageModel> = []) => {
+  if (!listedIds.length) {
+    return available
+  }
+  const listed = listedIds.map(id => findIn(available, id)).filter(model => model !== undefined)
+  return [...new Set([...pinned, ...listed])]
+}
 /** custom models come first, so they win over a catalog model whose short ID they share */
-export const models: ReadonlyArray<ImageModel> = [...customModels, ...catalogModels]
+export const models: ReadonlyArray<ImageModel> = pickListedModels([...customModels, ...catalogModels], queryParameters.models, customModels.filter(model => customModelIds.includes(model.id)))
 export const defaultModelId = 'google/gemini-nano-banana-2.1'
-export const defaultModel = customModels.at(0) ?? models.find(model => model.id === defaultModelId) ?? models[0]
-export const findModel = (id: unknown) => (typeof id === 'string' ? models.find(model => model.id === id.trim() || model.shortId === id.trim()) : undefined)
+export const defaultModel = (queryParameters.models.length ? models[0] : customModels.at(0)) ?? models.find(model => model.id === defaultModelId) ?? models[0]
+export const findModel = (id: unknown) => (typeof id === 'string' ? findIn(models, id.trim()) : undefined)
 export const getModel = (id: unknown): ImageModel => findModel(id) ?? defaultModel
+/** title and icon of any model ID, also one that is no longer offered, like a model of an earlier generation that the models parameter now leaves out */
+export const describeModel = (id: string): Pick<ImageModel, 'icon' | 'title'> => {
+  const model = findIn([...customModels, ...catalogModels], id)
+  if (model) {
+    return model
+  }
+  const traits = findModelTraits(id)
+  return {
+    title: traits?.title ?? id,
+    icon: traits?.icon,
+  }
+}
 export function applyImageCatalog(value: unknown) {
   const entries = parseImageCatalog(value)
   // Retain explicitly labeled snapshot records for models temporarily missing from discovery.
@@ -170,27 +204,11 @@ export function applyImageCatalog(value: unknown) {
 }
 export async function refreshImageCatalog() {
   try {
-    const host = queryParameters.openrouter_host
-    // The local gateway only discovers OpenRouter’s own catalog, so another host is asked directly.
-    let response = host === openRouterOrigin ? await fetch('/api/models', {signal: AbortSignal.timeout(12_000)}) : undefined
-    if (!response?.ok || !response.headers.get('content-type')?.includes('application/json')) {
-      response = await fetch(`${host}/api/v1/images/models`, {signal: AbortSignal.timeout(12_000)})
-    }
+    const response = await fetch(`${queryParameters.openrouter_host}/api/v1/images/models`, {signal: AbortSignal.timeout(12_000)})
     if (!response.ok) {
       throw new Error(`Image catalog returned HTTP ${response.status}.`)
     }
-    const value = await response.json() as {
-      retrievedAt?: string
-      source?: string
-    }
-    applyImageCatalog(value)
-    if (value.source === 'snapshot') {
-      catalogStore.set({
-        source: 'snapshot',
-        updatedAt: value.retrievedAt ?? snapshot.retrievedAt,
-        error: 'Live discovery is unavailable; using the dated capability snapshot.',
-      })
-    }
+    applyImageCatalog(await response.json())
   } catch {
     catalogStore.set({error: 'Live discovery is unavailable; using the dated capability snapshot.'})
   }

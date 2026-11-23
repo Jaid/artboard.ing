@@ -15,6 +15,7 @@ import {createThumbnailDataUrl, looksLikeImage, normalizeImportedImage} from './
 import {getModel} from './models/index.ts'
 import {getErrorMessage, notify} from './notices.ts'
 import {closestRatio, parseRatio} from './ratio.ts'
+import {normalizeShots} from './shots.ts'
 import {createEmptyDocument, createFrame, createInitialEditorState, defaultImportedMask, editorStore, projectStore} from './state.ts'
 import {fitViewToRect} from './viewport.ts'
 
@@ -105,6 +106,10 @@ export const setResolution = (resolution: string) => {
 
 export const setQuality = (quality: string) => {
   editorStore.set({quality})
+}
+
+export const setShots = (shots: number) => {
+  editorStore.set({shots: normalizeShots(shots)})
 }
 
 export const setPrompt = (prompt: string) => {
@@ -387,6 +392,7 @@ export const resetProject = () => {
     modelId: state.modelId,
     resolution: state.resolution,
     quality: state.quality,
+    shots: state.shots,
     ratio: state.ratio,
     frameEnabled: state.frameEnabled,
     frame: createFrame(state.ratio, {

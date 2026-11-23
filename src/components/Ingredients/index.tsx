@@ -3,35 +3,31 @@ import type {ThumbnailFit} from '#src/lib/thumbnailFit.ts'
 import type {MouseEvent, ReactNode} from 'react'
 
 import {RotateCw, X} from 'lucide-react'
-import {useEffect, useId, useMemo, useRef, useSyncExternalStore} from 'react'
+import {useEffect, useId, useRef, useSyncExternalStore} from 'react'
 
 import {addIngredients} from '#src/lib/actions.ts'
 import {assets} from '#src/lib/assets.ts'
+import {describeUsage, kindTitles} from '#src/lib/collectionDetails.ts'
+import {openCollectionDialog} from '#src/lib/collectionDialog.ts'
 import {getReferenceText, startIngredientDrag, startReferenceDrag} from '#src/lib/collectionDrag.ts'
 import {setHoveredCollectionIndex} from '#src/lib/collectionHover.ts'
 import {renderRegion} from '#src/lib/composite.ts'
 import {openCollectionMenu} from '#src/lib/contextMenu.ts'
 import {pickImageFiles} from '#src/lib/filePicker.ts'
 import {dismissJob, transformIngredient} from '#src/lib/generation.ts'
-import {getGenerationRegion} from '#src/lib/generationRegion.ts'
 import {getModel} from '#src/lib/models/index.ts'
 import {getErrorMessage, notify} from '#src/lib/notices.ts'
 import {insertIntoPrompt} from '#src/lib/promptEditor.ts'
 import {parseRatio} from '#src/lib/ratio.ts'
-import {getAssetOccurrences} from '#src/lib/revisions.ts'
 import {editorStore, projectStore} from '#src/lib/state.ts'
 import {useStore} from '#src/lib/store/index.ts'
 import {getThumbnailFit} from '#src/lib/thumbnailFit.ts'
 import {findTransformPreset} from '#src/lib/transformPresets.ts'
 import {useElapsedSeconds} from '#src/lib/useElapsedSeconds.ts'
+import {useGenerationRegion} from '#src/lib/useGenerationRegion.ts'
 
 import css from './style.module.sass'
 
-const kindTitles: Record<NonNullable<Ingredient['kind']>, string> = {
-  import: 'import',
-  generated: 'generation',
-  snapshot: 'canvas snapshot',
-}
 const useAssetRevision = () => {
   const revision = useRef(0)
   return useSyncExternalStore(listener => assets.subscribe(() => {
@@ -93,7 +89,7 @@ const addFiles = async () => {
   }
 }
 
-/** The collection: the live frame view, then every numbered image as an equally tall thumbnail. Click inserts its reference; drag it onto the canvas or into the prompt. */
+/** The collection: the live frame view, then every numbered image as an equally tall thumbnail. Click opens its details; drag it into the prompt or onto the canvas. */
 export default function Ingredients() {
   const ingredients = useStore(projectStore, state => state.ingredients)
   const jobs = useStore(editorStore, state => state.jobs)
@@ -109,6 +105,13 @@ export default function Ingredients() {
   </section>
 }
 
+/** the number of a collection tile on the badge color of its kind, for use outside of the tile */
+export function CollectionNumber({index, kind}: {
+  index: number
+  kind: string
+}) {
+  return <span className={css.badge} data-kind={kind}>{index}</span>
+}
 /** A collection tile. Hovering it reveals a rich tooltip above it and, if the thumbnail is cropped, the complete picture in place. */
 function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId, tooltip, unrolledSource, ...props}: TileProps) {
   const fit = getThumbnailFit(fullAspect, 1)
@@ -119,7 +122,6 @@ function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId
     unrollRef.current = element
   }
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const reference = getReferenceText({index})
   const canUnroll = Boolean(fit.crop && (unrolledSource || drawUnrolled))
   const unroll = () => {
     const tile = tileRef.current
@@ -184,11 +186,15 @@ function Tile({drawUnrolled, fullAspect, index, kind, media, onDragStart, testId
     onPointerLeave={leave}
   >
     <button
-      className={css.insert}
+      className={css.open}
+      aria-haspopup='dialog'
       aria-label={props['aria-label']}
       interestfor={tooltipId}
       type='button'
-      onClick={() => insertIntoPrompt(reference)}
+      onClick={() => {
+        leave()
+        openCollectionDialog(index)
+      }}
     >
       {media}
       <span className={css.number}>{index}</span>
@@ -206,7 +212,7 @@ function TooltipContent({index, kind, title, details}: {
   title: string
 }) {
   return <>
-    <span className={css.tooltipTitle} data-kind={kind}><span className={css.number}>{index}</span><strong>{title}</strong></span>
+    <span className={css.tooltipTitle}><CollectionNumber index={index} kind={kind} /><strong>{title}</strong></span>
     {details.map(detail => <span key={detail} className={css.tooltipDetail}>{detail}</span>)}
   </>
 }
@@ -214,16 +220,8 @@ function TooltipContent({index, kind, title, details}: {
 function FrameView({assetRevision}: {assetRevision: number}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const layers = useStore(projectStore, state => state.layers)
-  const frame = useStore(editorStore, state => state.frame)
   const frameEnabled = useStore(editorStore, state => state.frameEnabled)
-  const modelId = useStore(editorStore, state => state.modelId)
-  const ratio = useStore(editorStore, state => state.ratio)
-  const region = useMemo(() => getGenerationRegion({
-    frame,
-    frameEnabled,
-    modelId,
-    ratio,
-  }, layers).frame, [frame, frameEnabled, modelId, ratio, layers])
+  const region = useGenerationRegion().frame
   const fit = getThumbnailFit(region.width, region.height)
   // Renders at most once per animation frame, so dragging the frame or a layer stays smooth.
   useEffect(() => {
@@ -277,35 +275,30 @@ function FrameView({assetRevision}: {assetRevision: number}) {
   }
   const area = frameEnabled ? 'canvas inside the frame' : 'all canvas artwork'
   return <Tile
-    aria-label={`Insert ![0] · ${area}`}
+    aria-label={`Show ![0] · ${area}`}
     drawUnrolled={drawUnrolled}
     fullAspect={region.width / region.height}
     index={0}
     kind='canvas'
     media={<canvas aria-hidden ref={canvasRef} />}
     testId='frame-view'
-    tooltip={<TooltipContent details={[`Live view of the ${frameEnabled ? 'canvas inside the frame' : 'generation area spanning all artwork'}`, 'Click to reference it in the prompt or drag it into the prompt', 'Right-click to export']} index={0} kind='canvas' title={frameEnabled ? 'Canvas inside the frame' : 'All canvas artwork'} />}
+    tooltip={<TooltipContent details={[`Live view of the ${frameEnabled ? 'canvas inside the frame' : 'generation area spanning all artwork'}`, 'Drag it into the prompt to reference it', 'Click to enlarge it, right-click to export']} index={0} kind='canvas' title={frameEnabled ? 'Canvas inside the frame' : 'All canvas artwork'} />}
     onDragStart={dataTransfer => startReferenceDrag(dataTransfer, 0)}
   />
 }
-const layerCount = (count: number) => `${count} layer${count === 1 ? '' : 's'}`
 function IngredientTile({ingredient}: {ingredient: Ingredient}) {
   const asset = assets.get(ingredient.assetId)
   const layers = useStore(projectStore, state => state.layers)
-  const occurrences = getAssetOccurrences(layers, ingredient.assetId)
-  const buried = occurrences.filter(item => item.buried).length
   const kind = ingredient.kind
   const reference = getReferenceText(ingredient)
-  const shown = occurrences.length - buried
-  const usage = [shown && `Shown by ${layerCount(shown)}`, buried && `Unselected revision in ${layerCount(buried)}`].filter(Boolean).join(' · ') || 'Not on the canvas'
   return <Tile
-    aria-label={`Insert ${reference} · ${ingredient.name}`}
+    aria-label={`Show ${reference} · ${ingredient.name}`}
     fullAspect={asset ? asset.width / asset.height : 1}
     index={ingredient.index}
     kind={kind}
     media={ingredient.thumbnail && <img alt='' draggable={false} src={ingredient.thumbnail} />}
     testId='ingredient'
-    tooltip={<TooltipContent details={[[kindTitles[kind], asset && `${asset.width} × ${asset.height} px`].filter(Boolean).join(' · '), usage, 'Click to reference it in the prompt, or drag it into the prompt or onto the canvas', 'Right-click to export or delete']} index={ingredient.index} kind={kind} title={ingredient.name} />}
+    tooltip={<TooltipContent details={[[kindTitles[kind], asset && `${asset.width} × ${asset.height} px`].filter(Boolean).join(' · '), describeUsage(layers, ingredient.assetId), 'Drag it into the prompt to reference it, or onto the canvas to place a copy', 'Click for details, right-click for actions']} index={ingredient.index} kind={kind} title={ingredient.name} />}
     unrolledSource={asset?.url ?? (ingredient.thumbnail || undefined)}
     onDragStart={dataTransfer => startIngredientDrag(dataTransfer, ingredient)}
   />

@@ -1,12 +1,13 @@
 import type {Adjustments} from './adjustments/index.ts'
 import type {Rect} from './geometry.ts'
 import type {PersistedEditorState} from './persistence.ts'
-import type {GenerationEvidence, GenerationRevision, Ingredient, Layer, LayerAlignment, ProjectDocument} from './state.ts'
+import type {GenerationEvidence, GenerationRevision, Ingredient, IngredientEvidence, Layer, LayerAlignment, ProjectDocument} from './state.ts'
 
 import {adjustmentKeys, normalizeAdjustments} from './adjustments/index.ts'
 import {defaultModel, findModel} from './models/index.ts'
 import {isFlip, isRotation} from './orientation.ts'
 import {closestRatio, isRatioString, parseRatio} from './ratio.ts'
+import {normalizeShots} from './shots.ts'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const fail = (): never => {
@@ -149,6 +150,14 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     if (Boolean(result.sourceAssetId) !== Boolean(result.rotation || result.flip)) {
       return fail()
     }
+    const captured = capture(v.evidence)
+    if (captured) {
+      // The output of a generation is the original image of its collection entry.
+      if (result.kind !== 'generated' || captured.outputAssetId !== (result.sourceAssetId ?? result.assetId)) {
+        return fail()
+      }
+      result.evidence = captured
+    }
     return result
   })
   const next = number(value.nextIngredientIndex, 1, Number.MAX_SAFE_INTEGER)
@@ -161,7 +170,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     nextIngredientIndex: next,
   }
 }
-const addEvidenceAssetIds = (ids: Set<string>, captured: GenerationEvidence | undefined) => {
+const addEvidenceAssetIds = (ids: Set<string>, captured: IngredientEvidence | undefined) => {
   if (!captured) {
     return
   }
@@ -189,6 +198,7 @@ export function collectDocumentAssetIds(documents: Iterable<ProjectDocument>) {
       if (ingredient.sourceAssetId) {
         ids.add(ingredient.sourceAssetId)
       }
+      addEvidenceAssetIds(ids, ingredient.evidence)
     }
   }
   return ids
@@ -218,6 +228,8 @@ export function parseEditor(value: unknown): PersistedEditorState {
     // Autosaves of models without resolutions or qualities could lack these fields, because undefined vanished from them.
     resolution: model.normalizeResolution(emptyText(value.resolution ?? '')),
     quality: model.normalizeQuality(emptyText(value.quality ?? '')) ?? '',
+    // Autosaves from before the shots dropdown lack it.
+    shots: normalizeShots(value.shots ?? 1),
     exportMode: ['canvas', 'custom', 'detail'].includes(String(value.exportMode)) ? value.exportMode as PersistedEditorState['exportMode'] : fail(),
     exportScale: number(value.exportScale, 0.01, 64),
     demoMode: bool(value.demoMode),
@@ -258,7 +270,15 @@ function parseAdjustments(v: unknown) {
   }
   return normalizeAdjustments(parsed)
 }
+/** the request capture of a layer, which always knows the frame its result was placed in */
 function evidence(v: unknown): GenerationEvidence | undefined {
+  const captured = capture(v)
+  return captured && {
+    ...captured,
+    frame: captured.frame ?? fail(),
+  }
+}
+function capture(v: unknown): IngredientEvidence | undefined {
   if (v === undefined) {
     return undefined
   }
@@ -268,7 +288,7 @@ function evidence(v: unknown): GenerationEvidence | undefined {
   return {
     id: text(v.id),
     capturedAt: number(v.capturedAt, 0, 9e15),
-    frame: parseRect(v.frame),
+    ...v.frame === undefined ? {} : {frame: parseRect(v.frame)},
     modelId: text(v.modelId),
     ratio: text(v.ratio),
     resolution: emptyText(v.resolution),
